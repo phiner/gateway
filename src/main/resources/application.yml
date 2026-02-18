@@ -1,0 +1,31 @@
+# Spring Boot application configuration
+spring:
+  application:
+    name: demo
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+
+# Forex Gateway configuration
+forex:
+  # Comma-separated list of currency pairs to subscribe to.
+  # Example: EURUSD,GBPUSD,USDJPY
+  instruments: EURUSD,GBPUSD,USDJPY
+
+  # Comma-separated list of candle periods for the subscribed instruments.
+  # Valid values are from the Dukascopy Period enum, e.g., ONE_MIN, FIVE_MINS, FIFTEEN_MINS, ONE_HOUR, DAILY
+  periods: FIVE_MINS,FIFTEEN_MINS,DAILY
+
+gateway:
+  kline:
+    storage-limit: 45
+
+# JForex Connection Settings
+JFOREX_URL: ${JFOREX_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
+JFOREX_USERNAME: ${JFOREX_USERNAME}
+JFOREX_PASSWORD: ${JFOREX_PASSWORD}

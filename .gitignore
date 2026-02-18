@@ -1,0 +1,35 @@
+
+# 所有的私钥文件
+*.json
+*.p12
+*.pem
+
+# Maven build output
+target/
+build/
+
+# Log files
+logs/
+*.log
+
+# Environment variables
+.env
+.env.*
+local.properties
+
+# Redis dump files
+dump.rdb
+*.rdb
+
+# IDE and environment specific
+.idx/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# OS generated files
+.DS_Store
+Thumbs.db
