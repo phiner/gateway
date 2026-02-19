@@ -1,3 +1,4 @@
+
 package phiner.de5.net.gateway.strategy;
 
 import com.dukascopy.api.*;
@@ -23,7 +24,7 @@ import phiner.de5.net.gateway.service.RedisService;
 public class TradingStrategy implements IStrategy {
 
   private IContext context;
-  private final ExecutorService executor = Executors.newSingleThreadExecutor();
+  private ExecutorService executor;
 
   private final Set<Instrument> subscribedInstruments = new HashSet<>();
   private final Set<Period> configuredPeriods = new HashSet<>();
@@ -47,6 +48,9 @@ public class TradingStrategy implements IStrategy {
   @Override
   public void onStart(IContext context) {
     this.context = context;
+    if (this.executor == null) {
+        this.executor = Executors.newSingleThreadExecutor();
+    }
     if (context != null) {
       // Subscribe to instruments from configuration
       if (instrumentsValue != null && !instrumentsValue.isEmpty()) {
@@ -158,6 +162,10 @@ public class TradingStrategy implements IStrategy {
 
   public IContext getContext() {
     return context;
+  }
+
+  public void setExecutor(ExecutorService executor) {
+      this.executor = executor;
   }
 
     public void executeMarketOrder(OpenMarketOrderRequest request) throws JFException {

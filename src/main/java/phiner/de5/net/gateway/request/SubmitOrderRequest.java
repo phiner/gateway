@@ -2,8 +2,10 @@ package phiner.de5.net.gateway.request;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
+@NoArgsConstructor
 public class SubmitOrderRequest {
     @JsonProperty("requestId")
     private String requestId;

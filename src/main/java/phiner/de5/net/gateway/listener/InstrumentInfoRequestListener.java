@@ -7,15 +7,18 @@ import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import phiner.de5.net.gateway.MsgpackDecoder;
 import phiner.de5.net.gateway.request.InstrumentInfoRequest;
+import phiner.de5.net.gateway.service.RedisService;
 import phiner.de5.net.gateway.strategy.TradingStrategy;
 
 @Component
 public class InstrumentInfoRequestListener implements MessageListener {
 
     private final TradingStrategy tradingStrategy;
+    private final RedisService redisService;
 
-    public InstrumentInfoRequestListener(TradingStrategy tradingStrategy) {
+    public InstrumentInfoRequestListener(TradingStrategy tradingStrategy, RedisService redisService) {
         this.tradingStrategy = tradingStrategy;
+        this.redisService = redisService;
     }
 
     @Override
@@ -26,7 +29,7 @@ public class InstrumentInfoRequestListener implements MessageListener {
                 tradingStrategy.handleInstrumentInfoRequest(request);
             }
         } catch (Exception e) {
-            System.err.println("Failed to process instrument info request: " + e.getMessage());
+            redisService.publishError("Failed to process instrument info request: " + e.getMessage());
             e.printStackTrace();
         }
     }

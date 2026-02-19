@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import phiner.de5.net.gateway.MsgpackDecoder;
 import phiner.de5.net.gateway.MsgpackEncoder;
@@ -27,7 +26,6 @@ public class RedisService {
   private int klineStorageLimit;
 
   private static final String KLINE_KEY_PREFIX = "kline";
-  private static final String ACCOUNT_KEY = "account:current";
 
   private final RedisTemplate<String, byte[]> redisTemplateBytes;
   private final RedisTemplate<String, String> redisTemplateString;
@@ -152,21 +150,6 @@ public class RedisService {
     } catch (Exception e) {
       System.err.println("Failed to publish account status: " + e.getMessage());
       e.printStackTrace();
-    }
-  }
-
-  @Nullable
-  public AccountStatusDTO getAccountStatus() {
-    try {
-      byte[] data = redisTemplateBytes.opsForValue().get(ACCOUNT_KEY);
-      if (data == null) {
-        return null;
-      }
-      return MsgpackDecoder.decode(data, AccountStatusDTO.class);
-    } catch (Exception e) {
-      System.err.println("Failed to retrieve account status: " + e.getMessage());
-      e.printStackTrace();
-      return null;
     }
   }
 

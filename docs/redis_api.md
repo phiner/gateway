@@ -44,12 +44,12 @@
 
 #### ▶️ `kline:{instrument}:{period}`
 发布一个指定品种和周期的已闭合K线。
-*   **频道示例**: `kline:EURUSD:1MIN`
+*   **频道示例**: `kline:EURUSD:ONE_MIN`
 *   **负载示例**:
     ```json
     {
       "instrument": "EURUSD",
-      "period": "1MIN",
+      "period": "ONE_MIN",
       "time": 1678886400000,
       "open": 1.07499,
       "close": 1.07509,
@@ -61,7 +61,7 @@
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
     | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
-    | `period` | String | 是 | K线周期, e.g., "1MIN", "1H", "D1" |
+    | `period` | String | 是 | K线周期, 必须为JForex `Period`枚举的标准名称, e.g., "ONE_MIN", "FIVE_MINS", "ONE_HOUR", "DAILY" |
     | `time` | Long | 是 | K线开盘时间 (Unix 毫秒) |
     | `open` | Double | 是 | 开盘价 |
     | `close` | Double | 是 | 收盘价 |
@@ -74,8 +74,8 @@
 
 *   **操作**: 使用 Redis 的 `LRANGE` 命令。
 *   **Key 格式**: `kline:{instrument}:{period}`
-*   **Key 示例**: `kline:EURUSD:1MIN`
-*   **命令示例**: `LRANGE kline:EURUSD:1MIN 0 -1`
+*   **Key 示例**: `kline:EURUSD:ONE_MIN`
+*   **命令示例**: `LRANGE kline:EURUSD:ONE_MIN 0 -1`
 
 **响应**:
 
@@ -83,36 +83,46 @@
 
 **存储限制**:
 
-K 线的历史数据量是**有限的**。这个上限在网关的 `application.properties` 配置文件中通过 `gateway.kline.storage-limit` 属性进行定义。例如，如果设置为 `45`，则该列表最多只会保留最新的 45 根 K 线。
+K 线的历史数据量是**有限的**。这个上限在网关的 `application.yml` 配置文件中通过 `gateway.kline.storage-limit` 属性进行定义。例如，如果设置为 `45`，则该列表最多只会保留最新的 45 根 K 线。
 
 ### 账户与订单事件
 
 #### ▶️ `order:event`
-实时发布与订单生命周期相关的事件。
+实时发布与订单生命周期相关的事件。该数据结构直接反映了 JForex 平台的消息和订单对象。
 *   **负载示例**:
     ```json
     {
-      "orderId": "D3a-fGv-42s",
+      "messageId": "D3a-fGv-42s",
       "eventType": "ORDER_FILL_OK",
+      "creationTime": 1678886410000,
+      "reason": null,
+      "orderLabel": "strategy-alpha-01",
       "instrument": "EURUSD",
+      "orderState": "FILLED",
       "orderCommand": "BUY",
       "amount": 0.01,
-      "fillPrice": 1.07515,
-      "message": "Order filled successfully",
-      "timestamp": 1678886410000
+      "openPrice": 1.07515,
+      "fillTime": 1678886410000,
+      "closePrice": null,
+      "closeTime": null
     }
     ```
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `orderId`| String | 是 | 来自平台的唯一订单ID |
-    | `eventType`| String | 是 | 事件类型, e.g., "ORDER_SUBMIT_OK", "ORDER_FILL_OK" |
+    | `messageId`| String | 是 | 来自平台的唯一订单/消息ID |
+    | `eventType`| String | 是 | JForex事件类型, e.g., "ORDER_SUBMIT_OK", "ORDER_FILL_OK", "ORDER_CLOSE_OK" |
+    | `creationTime`| Long | 是 | 事件的Unix时间戳 (毫秒) |
+    | `reason` | String | 否 | 消息附带的原因, 例如订单被拒绝的理由 |
+    | `orderLabel` | String | 否 | 订单的自定义标签 |
     | `instrument`| String | 是 | 交易品种名称 (无斜杠) |
-    | `orderCommand`| String | 是 | "BUY" 或 "SELL" |
-    | `amount` | Double | 是 | 成交数量 (手数) |
-    | `fillPrice`| Double | 是 | 成交价格 |
-    | `message`| String | 是 | 来自平台的原始消息 |
-    | `timestamp`| Long | 是 | 事件的Unix时间戳 (毫秒) |
+    | `orderState`| String | 是 | 订单状态, e.g., "CREATED", "OPENED", "FILLED", "CLOSED" |
+    | `orderCommand`| String | 是 | 订单指令, e.g., "BUY", "SELL", "BUY_LIMIT" |
+    | `amount` | Double | 是 | 订单数量 (手数) |
+    | `openPrice`| Double | 是 | 开仓价格 |
+    | `fillTime` | Long | 否 | 订单成交时间 (Unix 毫秒) |
+    | `closePrice`| Double | 否 | 平仓价格 |
+    | `closeTime` | Long | 否 | 订单关闭时间 (Unix 毫秒) |
 
 #### ▶️ `account:status`
 在任何导致账户资金变动的事件后发布，用于同步当前账户的余额和净值。
@@ -136,41 +146,27 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **负载示例**:
     ```json
     {
+      "service": "gateway",
       "status": "CONNECTED",
+      "timestamp": 1678886401000,
       "message": "交易策略已启动并连接到Dukascopy。"
     }
     ```
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
+    | `service` | String | 是 | 表明消息来源的服务, 固定为 "gateway" |
     | `status` | String | 是 | "CONNECTED" (已连接) 或 "DISCONNECTED" (已断开) |
+    | `timestamp` | Long | 是 | 事件的Unix时间戳 (毫秒) |
     | `message` | String | 是 | 描述性信息 |
 
 #### ▶️ `gateway:error`
-发布来自网关的错误消息。
-*   **负载示例**:
-    ```json
-    {
-      "message": "找不到交易品种: EUR/USD"
-    }
-    ```
-*   **字段说明**:
-    | 字段名 | 类型 | 是否必需 | 描述 |
-    | :--- | :--- | :--- | :--- |
-    | `message` | String | 是 | 错误消息内容 |
+发布来自网关的错误消息。负载为 **原始字符串 (Raw String)**。
+*   **负载示例**: `找不到交易品种: EUR/USD`
 
 #### ▶️ `gateway:info`
-发布来自网关的通用信息性消息。
-*   **负载示例**:
-    ```json
-    {
-      "message": "交易策略已启动。"
-    }
-    ```
-*   **字段说明**:
-    | 字段名 | 类型 | 是否必需 | 描述 |
-    | :--- | :--- | :--- | :--- |
-    | `message` | String | 是 | 信息内容 |
+发布来自网关的通用信息性消息。负载为 **原始字符串 (Raw String)**。
+*   **负载示例**: `交易策略已启动。`
 
 ---
 
@@ -180,7 +176,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 ### 获取交易品种信息
 
 1.  **客户端发布请求**:
-    *   **频道**: `info:instrument:request`
+    *   **频道**: `system:request:instrument_info`
     *   **负载示例**:
         ```json
         {
@@ -200,21 +196,21 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     *   **负载示例**:
         ```json
         {
-          "instrument": "EURUSD",
+          "name": "EURUSD",
           "currency": "EUR/USD",
-          "pipValue": 0.0001,
-          "pipValueInMicros": 10,
-          "description": "Euro vs US Dollar"
+          "pip": 0.0001,
+          "point": 1e-05,
+          "description": "EURUSD"
         }
         ```
     *   **字段说明**:
         | 字段名 | 类型 | 是否必需 | 描述 |
         | :--- | :--- | :--- | :--- |
-        | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
+        | `name` | String | 是 | 交易品种名称 (无斜杠) |
         | `currency` | String | 是 | 基础/报价货币对 |
-        | `pipValue` | Double | 是 | 一个点的价值 |
-        | `pipValueInMicros`| Double | 是 | 以微点为单位的点值 |
-        | `description`| String | 是 | 交易品种描述 |
+        | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
+        | `point`| Double | 是 | 以微点为单位的点值 (当前硬编码为 `pip / 10`) |
+        | `description`| String | 是 | 交易品种描述 (当前与'name'字段相同) |
 
 ---
 
@@ -222,7 +218,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 客户端向这些频道 **PUBLISH** (发布) 指令以执行交易操作。
 
 ### 市价开仓
-*   **频道**: `order:open:market`
+*   **频道**: `order:open`
 *   **负载示例**:
     ```json
     {
@@ -247,7 +243,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | `takeProfitPrice` | Double | 否 | 止盈价格 |
 
 ### 市价平仓
-*   **频道**: `order:close:market`
+*   **频道**: `order:close`
 *   **负载示例**:
     ```json
     {
