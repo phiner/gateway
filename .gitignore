@@ -1,6 +1,7 @@
 
 # 所有的私钥文件
 *.json
+!.devcontainer/devcontainer.json
 *.p12
 *.pem
 

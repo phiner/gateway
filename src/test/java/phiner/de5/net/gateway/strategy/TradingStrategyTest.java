@@ -13,6 +13,7 @@ import org.mockito.MockitoAnnotations;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
 import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
+import phiner.de5.net.gateway.config.ForexProperties;
 import phiner.de5.net.gateway.request.*;
 import phiner.de5.net.gateway.service.RedisService;
 
@@ -34,12 +35,15 @@ public class TradingStrategyTest {
   @Mock
   private RedisService redisService;
 
+  @Mock
+  private ForexProperties forexProperties;
+
   private TradingStrategy tradingStrategy;
 
   @BeforeEach
   public void setUp() {
     MockitoAnnotations.openMocks(this);
-    tradingStrategy = new TradingStrategy(tickManager, kLineManager, redisService);
+    tradingStrategy = new TradingStrategy(tickManager, kLineManager, redisService, forexProperties);
     tradingStrategy.onStart(context);
     when(context.getEngine()).thenReturn(engine);
   }

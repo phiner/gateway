@@ -20,15 +20,15 @@
 
 ### 市场数据
 
-**重要提示**: 所有频道名称中的交易品种（instrument），例如 `EUR/USD`，都会被**移除斜杠**处理，变为 `EURUSD`。下文所有示例均已遵循此格式。
+**重要提示**: 所有频道名称中的交易品种（instrument），例如 `EUR/USD`，都会被**移除斜杠**处理，变为 `EUR/USD`。下文所有示例均已遵循此格式。
 
 #### ▶️ `tick:{instrument}`
 发布一个交易品种的最新买卖报价。
-*   **频道示例**: `tick:EURUSD`
+*   **频道示例**: `tick:EUR/USD`
 *   **负载示例**:
     ```json
     {
-      "instrument": "EURUSD",
+      "instrument": "EUR/USD",
       "time": 1678886400000,
       "ask": 1.07501,
       "bid": 1.07500
@@ -37,18 +37,18 @@
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
+    | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `time` | Long | 是 | Unix 时间戳 (毫秒) |
     | `ask` | Double | 是 | 卖出价 |
     | `bid` | Double | 是 | 买入价 |
 
 #### ▶️ `kline:{instrument}:{period}`
 发布一个指定品种和周期的已闭合K线。
-*   **频道示例**: `kline:EURUSD:ONE_MIN`
+*   **频道示例**: `kline:EUR/USD:ONE_MIN`
 *   **负载示例**:
     ```json
     {
-      "instrument": "EURUSD",
+      "instrument": "EUR/USD",
       "period": "ONE_MIN",
       "time": 1678886400000,
       "open": 1.07499,
@@ -60,7 +60,7 @@
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
+    | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `period` | String | 是 | K线周期, 必须为JForex `Period`枚举的标准名称, e.g., "ONE_MIN", "FIVE_MINS", "ONE_HOUR", "DAILY" |
     | `time` | Long | 是 | K线开盘时间 (Unix 毫秒) |
     | `open` | Double | 是 | 开盘价 |
@@ -74,8 +74,8 @@
 
 *   **操作**: 使用 Redis 的 `LRANGE` 命令。
 *   **Key 格式**: `kline:{instrument}:{period}`
-*   **Key 示例**: `kline:EURUSD:ONE_MIN`
-*   **命令示例**: `LRANGE kline:EURUSD:ONE_MIN 0 -1`
+*   **Key 示例**: `kline:EUR/USD:ONE_MIN`
+*   **命令示例**: `LRANGE kline:EUR/USD:ONE_MIN 0 -1`
 
 **响应**:
 
@@ -97,7 +97,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
       "creationTime": 1678886410000,
       "reason": null,
       "orderLabel": "strategy-alpha-01",
-      "instrument": "EURUSD",
+      "instrument": "EUR/USD",
       "orderState": "FILLED",
       "orderCommand": "BUY",
       "amount": 0.01,
@@ -115,7 +115,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | `creationTime`| Long | 是 | 事件的Unix时间戳 (毫秒) |
     | `reason` | String | 否 | 消息附带的原因, 例如订单被拒绝的理由 |
     | `orderLabel` | String | 否 | 订单的自定义标签 |
-    | `instrument`| String | 是 | 交易品种名称 (无斜杠) |
+    | `instrument`| String | 是 | 交易品种名称 (带斜杠) |
     | `orderState`| String | 是 | 订单状态, e.g., "CREATED", "OPENED", "FILLED", "CLOSED" |
     | `orderCommand`| String | 是 | 订单指令, e.g., "BUY", "SELL", "BUY_LIMIT" |
     | `amount` | Double | 是 | 订单数量 (手数) |
@@ -181,14 +181,14 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         ```json
         {
           "requestId": "ai-tool-req-12345",
-          "instrument": "EURUSD"
+          "instrument": "EUR/USD"
         }
         ```
     *   **字段说明**:
         | 字段名 | 类型 | 是否必需 | 描述 |
         | :--- | :--- | :--- | :--- |
         | `requestId`| String | 是 | 由客户端生成的唯一请求ID |
-        | `instrument`| String | 是 | 需要查询的交易品种 (无斜杠) |
+        | `instrument`| String | 是 | 需要查询的交易品种 (带斜杠) |
 
 2.  **网关发布响应**:
     *   **频道**: `info:instrument:response:{requestId}` (`requestId` 是请求中包含的ID)。
@@ -196,17 +196,17 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     *   **负载示例**:
         ```json
         {
-          "name": "EURUSD",
+          "name": "EUR/USD",
           "currency": "EUR/USD",
           "pip": 0.0001,
           "point": 1e-05,
-          "description": "EURUSD"
+          "description": "EUR/USD"
         }
         ```
     *   **字段说明**:
         | 字段名 | 类型 | 是否必需 | 描述 |
         | :--- | :--- | :--- | :--- |
-        | `name` | String | 是 | 交易品种名称 (无斜杠) |
+        | `name` | String | 是 | 交易品种名称 (带斜杠) |
         | `currency` | String | 是 | 基础/报价货币对 |
         | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
         | `point`| Double | 是 | 以微点为单位的点值 (当前硬编码为 `pip / 10`) |
@@ -222,7 +222,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **负载示例**:
     ```json
     {
-      "instrument": "EURUSD",
+      "instrument": "EUR/USD",
       "orderType": "BUY",
       "amount": 0.01,
       "label": "strategy-alpha-01",
@@ -234,7 +234,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
+    | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `orderType` | String | 是 | "BUY" 或 "SELL" |
     | `amount` | Double | 是 | 交易量 (手数) |
     | `label` | String | 否 | 自定义订单标签或备注 |
@@ -260,7 +260,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **负载示例 (限价买单)**:
     ```json
     {
-      "instrument": "EURUSD",
+      "instrument": "EUR/USD",
       "orderCommand": "BUY_LIMIT",
       "amount": 0.01,
       "price": 1.07200,
@@ -272,7 +272,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `instrument` | String | 是 | 交易品种名称 (无斜杠) |
+    | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `orderCommand` | String | 是 | 挂单指令, e.g., "BUY_LIMIT", "SELL_STOP" |
     | `amount` | Double | 是 | 交易量 (手数) |
     | `price` | Double | 是 | 挂单价格 |

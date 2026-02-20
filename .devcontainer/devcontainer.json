@@ -1,11 +1,36 @@
 {
-    "name": "Gateway",
-    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "name": "Spring Boot Podman Env",
+    "image": "mcr.microsoft.com/devcontainers/java:21-bookworm",
+    "containerUser": "vscode",
+    "remoteUser": "vscode",
+    "updateRemoteUserUID": false,
+    "runArgs": [
+        //"--userns=keep-id",
+        "--security-opt",
+        "label=disable",
+        "--user",
+        "1000:1000",
+        "--userns=keep-id:uid=1000,gid=1000"
+    ],
+    "containerEnv": {
+        "DONT_PROMPT_WSL_INSTALL": "true"
+    },
     "features": {
         "ghcr.io/devcontainers/features/java:1": {
-            "version": "21",
-            "installMaven": true,
-            "installJdkForMaven": true
+            "installMaven": "true"
+        },
+        "ghcr.io/devcontainers-contrib/features/apt-get-packages:1": {
+            "packages": "redis-tools"
+        }
+    },
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y redis-tools",
+    "customizations": {
+        "antigravity": {
+            "extensions": [
+                "vscjava.vscode-java-pack",
+                "vmware.vscode-spring-boot",
+                "cweijan.vscode-redis-client"
+            ]
         }
     }
 }

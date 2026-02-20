@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.3</version>
+        <version>4.0.2</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -20,7 +20,9 @@
         <jforex.api.version>2.13.99</jforex.api.version>
         <jforex.sdk.version>3.6.51</jforex.sdk.version>
         <junit.version>5.10.1</junit.version>
-        <mockito.version>5.11.0</mockito.version>
+        <lombok.version>1.18.42</lombok.version>
+        <mockito.version>5.16.0</mockito.version>
+        <byte-buddy.version>1.17.2</byte-buddy.version>
     </properties>
 
     <repositories>
@@ -42,13 +44,14 @@
 
         <dependency>
             <groupId>me.paulschwarz</groupId>
-            <artifactId>springboot3-dotenv</artifactId>
+            <artifactId>springboot4-dotenv</artifactId>
             <version>5.1.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.42</version>
             <optional>true</optional>
         </dependency>
 
@@ -118,19 +121,57 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy</artifactId>
+            <version>${byte-buddy.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy-agent</artifactId>
+            <version>${byte-buddy.version}</version>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <jvmArguments>
+                        --enable-native-access=ALL-UNNAMED
+                        -Dsun.stdout.encoding=UTF-8
+                    </jvmArguments>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.14</version>
                 <executions>
                     <execution>
                         <goals>
@@ -145,6 +186,29 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>3.4.3</version>
+                <configuration>
+                    <from>
+                        <image>gcr.io/distroless/java21-debian12</image>
+                    </from>
+                    <to>
+                        <image>ghcr.io/${project.groupId}/${project.artifactId}</image>
+                    </to>
+                    <container>
+                        <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+                        <jvmFlags>
+                            <jvmFlag>--enable-native-access=ALL-UNNAMED</jvmFlag>
+                            <jvmFlag>-Dsun.stdout.encoding=UTF-8</jvmFlag>
+                        </jvmFlags>
+                        <labels>
+                            <org.opencontainers.image.source>https://github.com/phiner/gateway</org.opencontainers.image.source>
+                        </labels>
+                    </container>
+                </configuration>
             </plugin>
         </plugins>
     </build>

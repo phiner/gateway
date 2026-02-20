@@ -26,6 +26,6 @@ gateway:
     storage-limit: 45
 
 # JForex Connection Settings
-JFOREX_URL: ${JFOREX_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
-JFOREX_USERNAME: ${JFOREX_USERNAME}
-JFOREX_PASSWORD: ${JFOREX_PASSWORD}
+jforex.url: ${JFOREX_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
+jforex.username: ${JFOREX_USERNAME}
+jforex.password: ${JFOREX_PASSWORD}

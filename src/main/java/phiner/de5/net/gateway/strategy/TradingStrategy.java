@@ -9,9 +9,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import phiner.de5.net.gateway.config.ForexProperties;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
 import phiner.de5.net.gateway.dto.BarDTO;
@@ -31,18 +32,17 @@ public class TradingStrategy implements IStrategy {
   private final TickManager tickManager;
   private final KLineManager kLineManager;
   private final RedisService redisService;
+  private final ForexProperties forexProperties;
 
-  @Value("${forex.instruments}")
-  private String instrumentsValue;
-
-  @Value("${forex.periods}")
-  private String periodsValue;
+  @Value("${gateway.kline.storage-limit}")
+  private int klineStorageLimit;
 
   public TradingStrategy(
-      TickManager tickManager, KLineManager kLineManager, RedisService redisService) {
+      TickManager tickManager, KLineManager kLineManager, RedisService redisService, ForexProperties forexProperties) {
     this.tickManager = tickManager;
     this.kLineManager = kLineManager;
     this.redisService = redisService;
+    this.forexProperties = forexProperties;
   }
 
   @Override
@@ -53,8 +53,8 @@ public class TradingStrategy implements IStrategy {
     }
     if (context != null) {
       // Subscribe to instruments from configuration
-      if (instrumentsValue != null && !instrumentsValue.isEmpty()) {
-        Set<Instrument> instrumentsToSubscribe = Arrays.stream(instrumentsValue.split(","))
+      if (forexProperties.getInstruments() != null && !forexProperties.getInstruments().isEmpty()) {
+        Set<Instrument> instrumentsToSubscribe = forexProperties.getInstruments().stream()
             .map(String::trim)
             .map(name -> {
               try {
@@ -78,12 +78,11 @@ public class TradingStrategy implements IStrategy {
       }
 
       // Parse and store configured periods
-      if (periodsValue != null && !periodsValue.isEmpty()) {
-        Set<Period> periodsToProcess = Arrays.stream(periodsValue.split(","))
+      if (forexProperties.getPeriods() != null && !forexProperties.getPeriods().isEmpty()) {
+        Set<Period> periodsToProcess = forexProperties.getPeriods().stream()
             .map(String::trim)
             .map(name -> {
                 try {
-                    // Attempt to convert to Period enum
                     return Period.valueOf(name);
                 } catch (IllegalArgumentException e) {
                     redisService.publishError("Invalid period name in configuration: " + name);
@@ -95,6 +94,20 @@ public class TradingStrategy implements IStrategy {
         this.configuredPeriods.addAll(periodsToProcess);
         String periods = periodsToProcess.stream().map(Period::toString).collect(Collectors.joining(", "));
         redisService.publishInfo("Will process bars for periods: " + periods);
+
+        // Preload historical data
+        try {
+          IHistory history = context.getHistory();
+          for (Instrument instrument : this.subscribedInstruments) {
+            for (Period period : this.configuredPeriods) {
+              System.out.println("Preloading historical data for " + instrument.toString() + " and period " + period);
+              history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, klineStorageLimit, context.getTime(), 0);
+            }
+          }
+        } catch (JFException e) {
+          redisService.publishError("Failed to preload historical data: " + e.getMessage());
+          e.printStackTrace();
+        }
       }
 
       redisService.publishGatewayStatus(
@@ -168,7 +181,7 @@ public class TradingStrategy implements IStrategy {
       this.executor = executor;
   }
 
-    public void executeMarketOrder(OpenMarketOrderRequest request) throws JFException {
+  public void executeMarketOrder(OpenMarketOrderRequest request) throws JFException {
         Instrument instrument = Instrument.fromString(request.getInstrument());
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
         double amount = request.getAmount();

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- Silence JForex noisy logs -->
+    <logger name="com.dukascopy.api.impl.connect.DCClientImpl" level="OFF"/>
+    <logger name="com.dukascopy.dds4.transport.common.mina.ssl.DDSTrustManager" level="OFF"/>
+    <logger name="com.dukascopy.dds4.transport.client.netty.ClientConnector" level="OFF"/>
+    <logger name="com.dukascopy.api.impl.connect.WLabelData" level="OFF"/>
+    <logger name="com.dukascopy.api.impl.subscribe.InstrumentManager" level="OFF"/>
+
+    <!-- Silence Java 25 / Netty security noise -->
+    <logger name="io.netty.util.internal.InternalThreadLocalMap" level="ERROR"/>
+    <logger name="sun.security.ssl" level="ERROR"/>
+</configuration>
