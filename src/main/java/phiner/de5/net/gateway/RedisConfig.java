@@ -1,6 +1,7 @@
 package phiner.de5.net.gateway;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.data.redis.autoconfigure.LettuceClientConfigurationBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -12,8 +13,24 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.lang.NonNull;
 import phiner.de5.net.gateway.listener.*;
 
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.protocol.ProtocolVersion;
+
 @Configuration
 public class RedisConfig {
+
+    /**
+     * Customize Lettuce client configuration to force RESP2 protocol.
+     * This avoids the "NOAUTH HELLO" error during RESP3 handshake on servers that require authentication.
+     */
+    @Bean
+    public LettuceClientConfigurationBuilderCustomizer lettuceClientConfigurationBuilderCustomizer() {
+        return clientConfigurationBuilder -> {
+            clientConfigurationBuilder.clientOptions(ClientOptions.builder()
+                    .protocolVersion(ProtocolVersion.RESP2)
+                    .build());
+        };
+    }
 
     @Bean
     public RedisMessageListenerContainer redisContainer(
