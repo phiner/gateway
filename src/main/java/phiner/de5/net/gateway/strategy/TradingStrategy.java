@@ -119,12 +119,22 @@ public class TradingStrategy implements IStrategy {
         // Preload historical data ASYNCHRONOUSLY to avoid blocking JForex start thread
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             try {
-              log.info("Async History Preloader: Waiting for instrument subscriptions to complete...");
-              try {
-                Thread.sleep(5000);
-              } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+              log.info("Async History Preloader: Waiting for instrument subscriptions to be confirmed by server...");
+              long startWait = System.currentTimeMillis();
+              // Poll until all requested instruments are reported as subscribed by the server
+              while (!context.getSubscribedInstruments().containsAll(this.subscribedInstruments)) {
+                  if (System.currentTimeMillis() - startWait > 30000) {
+                      log.warn("Async History Preloader: Timeout (30s) waiting for all instruments to subscribe. Proceeding with available ones.");
+                      break;
+                  }
+                  try {
+                      Thread.sleep(200);
+                  } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      return;
+                  }
               }
+              log.info("Async History Preloader: Subscriptions confirmed in {}ms. Starting history fetch.", System.currentTimeMillis() - startWait);
               IHistory history = context.getHistory();
               log.info("Async History Preloader: klineStorageLimit: {}, contextTime: {}", klineStorageLimit, context.getTime());
               for (Instrument instrument : this.subscribedInstruments) {
