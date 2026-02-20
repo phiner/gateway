@@ -23,6 +23,7 @@
         <lombok.version>1.18.42</lombok.version>
         <mockito.version>5.16.0</mockito.version>
         <byte-buddy.version>1.17.2</byte-buddy.version>
+        <start-class>phiner.de5.net.gateway.Application</start-class>
     </properties>
 
     <repositories>
