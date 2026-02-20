@@ -103,8 +103,12 @@ public class JForexClientService {
     public void shutdown() {
         if (client != null) {
             log.info("Shutting down JForex client...");
-            client.stopStrategy(0); // Stop all strategies
-            // client.disconnect(); // Not strictly required as exit will handle it, but good practice
+            try {
+                client.stopStrategy(0);
+                client.disconnect();
+            } catch (Exception e) {
+                log.error("Error during JForex client shutdown: {}", e.getMessage());
+            }
         }
     }
 
