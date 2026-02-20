@@ -28,7 +28,11 @@ jobs:
           distribution: 'oracle'
           cache: maven
 
+      - name: Run Tests
+        run: ./mvnw test
+
       - name: Build and Push with Jib
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
         run: |
           ./mvnw compile jib:build \
             -Djib.to.auth.username=${{ github.actor }} \
