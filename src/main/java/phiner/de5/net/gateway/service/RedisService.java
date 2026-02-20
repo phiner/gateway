@@ -198,4 +198,12 @@ public class RedisService {
             e.printStackTrace();
         }
     }
+
+    public void testConnection() {
+        try {
+            redisTemplateBytes.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> connection.ping());
+        } catch (Exception e) {
+            throw new RuntimeException("Redis connection check failed: " + e.getMessage(), e);
+        }
+    }
 }
