@@ -2,16 +2,17 @@
 trigger: always_on
 ---
 
-# GitHub 分支管理最佳实践 (GitHub Flow)
+# Git Workflow Strategy: Gitflow (Strict)
 
-1. **禁止直接提交**: 严禁在 `main` 或 `master` 分支直接 Commit。`main` 分支受 GitHub 规则集（Rulesets）严格保护，必须创建功能分支并提交 PR，禁止尝试直接推送代码到 `main` 分支。
-2. **禁止自主提交**: 严禁在未经用户明确许可的情况下执行 `git commit` 或 `git push`。
-3. **功能分支命名**: 
-   - 新功能: `feature/简短描述` (例: `feature/login-api`)
-   - 修复 Bug: `fix/描述` (例: `fix/connection-leak`)
-   - 性能优化: `perf/描述`
-3. **Pull Request 流程**:
-   - 必须先创建新分支。
-   - 完成开发后，必须发起 Pull Request (PR)。
-   - PR 必须通过 GitHub Actions 的自动化测试后才能合并。
-4. **提交信息规范**: 遵循 Angular 规范 (feat: ..., fix: ..., docs: ...)。
+## Rules
+1. **PROTECTED BRANCHES**: `main`, `develop` are READ-ONLY. NEVER push to them directly.
+2. **BASE BRANCH**: Always create new feature branches from `develop`.
+   - Command: `git checkout develop && git pull && git checkout -b feat/your-feature`
+3. **MERGE STRATEGY**: 
+   - Feature -> PR -> `develop`
+   - `develop` -> PR -> `main` (Release)
+
+## Branch Naming Convention
+- `feat/xxx`: New features
+- `fix/xxx`: Bug fixes
+- `hotfix/xxx`: Urgent fixes for main (branch off main, merge back to main AND develop)
