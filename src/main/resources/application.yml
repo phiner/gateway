@@ -10,16 +10,17 @@ spring:
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
+      password: ${REDIS_PASSWORD:}
 
 # Forex Gateway configuration
 forex:
   # Comma-separated list of currency pairs to subscribe to.
   # Example: EURUSD,GBPUSD,USDJPY
-  instruments: EURUSD,GBPUSD,USDJPY
+  instruments: ${FOREX_INSTRUMENTS:EUR/USD,GBP/USD,USD/JPY}
 
   # Comma-separated list of candle periods for the subscribed instruments.
   # Valid values are from the Dukascopy Period enum, e.g., ONE_MIN, FIVE_MINS, FIFTEEN_MINS, ONE_HOUR, DAILY
-  periods: FIVE_MINS,FIFTEEN_MINS,DAILY
+  periods: ${FOREX_PERIODS:FIVE_MINS,FIFTEEN_MINS,DAILY}
 
 gateway:
   kline:

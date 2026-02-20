@@ -26,6 +26,36 @@
         <start-class>phiner.de5.net.gateway.Application</start-class>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.javassist</groupId>
+                <artifactId>javassist</artifactId>
+                <version>3.30.2-GA</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dukascopy.dds2</groupId>
+                <artifactId>greed-common</artifactId>
+                <version>318.4.128</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dukascopy.dds2</groupId>
+                <artifactId>ui-core</artifactId>
+                <version>1.6.106</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dukascopy.dds2</groupId>
+                <artifactId>DDS2-jClient-JForex</artifactId>
+                <version>${jforex.sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dukascopy.dds2</groupId>
+                <artifactId>Login-Form</artifactId>
+                <version>3.31</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <repositories>
         <repository>
             <id>central</id>
@@ -33,6 +63,14 @@
         </repository>
         <repository>
             <id>dukascopy</id>
+            <url>https://www.dukascopy.com/client/jforexlib/publicrepo/</url>
+        </repository>
+        <repository>
+            <id>dukascopy-maven</id>
+            <url>https://www.dukascopy.com/client/jforexlib/publicrepo/</url>
+        </repository>
+        <repository>
+            <id>dukascopy-public</id>
             <url>https://www.dukascopy.com/client/jforexlib/publicrepo/</url>
         </repository>
     </repositories>
@@ -73,6 +111,80 @@
                 <exclusion>
                     <groupId>org.slf4j</groupId>
                     <artifactId>slf4j-log4j12</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.dukascopy.dds2</groupId>
+                    <artifactId>greed-common</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.dukascopy.dds2</groupId>
+                    <artifactId>ui-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.dukascopy.dds2</groupId>
+                    <artifactId>DDS2-jClient-JForex</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.dukascopy.dds2</groupId>
+                    <artifactId>Login-Form</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.javassist</groupId>
+                    <artifactId>javassist</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>javassist</groupId>
+                    <artifactId>javassist</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Re-adding excluded dependencies directly to manage them better and avoid warnings -->
+        <dependency>
+            <groupId>com.dukascopy.dds2</groupId>
+            <artifactId>greed-common</artifactId>
+            <version>318.4.128</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.dukascopy.dds2</groupId>
+            <artifactId>ui-core</artifactId>
+            <version>1.6.106</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.dukascopy.dds2</groupId>
+            <artifactId>DDS2-jClient-JForex</artifactId>
+            <version>${jforex.sdk.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-reload4j</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ch.qos.reload4j</groupId>
+                    <artifactId>reload4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.dukascopy.dds2</groupId>
+            <artifactId>Login-Form</artifactId>
+            <version>3.31</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>

@@ -19,6 +19,9 @@ import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
 import phiner.de5.net.gateway.dto.OrderEventDTO;
 import phiner.de5.net.gateway.dto.TickDTO;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
 public class RedisService {
 
@@ -39,34 +42,33 @@ public class RedisService {
 
   public void addBarToKLine(@NonNull BarDTO bar) {
     if (bar.getInstrument() == null || bar.getPeriod() == null) {
-      System.err.println("RedisService: Cannot process a bar with a null instrument/period.");
+      log.error("RedisService: Cannot process a bar with a null instrument/period.");
       return;
     }
 
     String redisKey =
         String.format(
             "%s:%s:%s",
-            KLINE_KEY_PREFIX, bar.getInstrument().replace("/", ""), bar.getPeriod());
+            KLINE_KEY_PREFIX, bar.getInstrument(), bar.getPeriod());
     byte[] barData = MsgpackEncoder.encode(bar);
 
     if (barData == null) {
-      System.err.println(
-          "RedisService: Failed to serialize BarDTO to MessagePack. The resulting data is null.");
+      log.error("RedisService: Failed to serialize BarDTO to MessagePack. The resulting data is null.");
       return;
     }
 
     try {
+      log.info("Writing bar to Redis list: {} (size: {} bytes)", redisKey, barData.length);
       redisTemplateBytes.opsForList().leftPush(Objects.requireNonNull(redisKey), barData);
       redisTemplateBytes.opsForList().trim(Objects.requireNonNull(redisKey), 0, klineStorageLimit - 1);
     } catch (Exception e) {
-      System.err.println("RedisService: Error while writing to Redis for key '" + redisKey + "'.");
-      e.printStackTrace();
+      log.error("RedisService: Error while writing to Redis for key '{}'.", redisKey, e);
     }
   }
 
   public List<BarDTO> getKLine(@NonNull String instrument, @NonNull String period) {
     String redisKey =
-        String.format("%s:%s:%s", KLINE_KEY_PREFIX, instrument.replace("/", ""), period);
+        String.format("%s:%s:%s", KLINE_KEY_PREFIX, instrument, period);
     try {
       List<byte[]> barDataList =
           redisTemplateBytes.opsForList().range(Objects.requireNonNull(redisKey), 0, -1);
@@ -90,7 +92,7 @@ public class RedisService {
       System.err.println("RedisService: Cannot publish tick with null instrument.");
       return;
     }
-    String channel = "tick:" + tick.getInstrument().replace("/", "");
+    String channel = "tick:" + tick.getInstrument();
     try {
       byte[] data = MsgpackEncoder.encode(tick);
       if (data != null) {
@@ -107,7 +109,7 @@ public class RedisService {
       System.err.println("RedisService: Cannot publish bar with null instrument/period.");
       return;
     }
-    String channel = String.format("kline:%s:%s", bar.getInstrument().replace("/", ""), bar.getPeriod());
+    String channel = String.format("kline:%s:%s", bar.getInstrument(), bar.getPeriod());
     try {
       byte[] data = MsgpackEncoder.encode(bar);
       if (data != null) {

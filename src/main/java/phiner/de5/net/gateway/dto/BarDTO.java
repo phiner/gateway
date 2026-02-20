@@ -13,12 +13,25 @@ public class BarDTO {
 
     public BarDTO(String instrument, String period, IBar bar) {
         this.instrument = instrument;
-        this.period = period;
+        this.period = formatPeriod(period);
         this.time = bar.getTime();
         this.open = bar.getOpen();
         this.close = bar.getClose();
         this.low = bar.getLow();
         this.high = bar.getHigh();
+    }
+
+    private String formatPeriod(String period) {
+        if (period == null) return null;
+        // e.g., "15 Mins" -> "15Mins" -> "15Min"
+        String formatted = period.replace(" ", "");
+        if (formatted.endsWith("s") && !formatted.equalsIgnoreCase("Mins")) {
+            // Keep "Mins" as "Min"
+            formatted = formatted.substring(0, formatted.length() - 1);
+        } else if (formatted.endsWith("Mins")) {
+            formatted = formatted.substring(0, formatted.length() - 1);
+        }
+        return formatted;
     }
 
     // Add getters for all fields to allow for serialization

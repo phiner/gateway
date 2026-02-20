@@ -1,4 +1,3 @@
-
 package phiner.de5.net.gateway.strategy;
 
 import com.dukascopy.api.*;
@@ -20,12 +19,16 @@ import phiner.de5.net.gateway.dto.GatewayStatusDTO;
 import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
 import phiner.de5.net.gateway.request.*;
 import phiner.de5.net.gateway.service.RedisService;
+import lombok.extern.slf4j.Slf4j;
+import java.util.List;
 
+@Slf4j
 @Component
 public class TradingStrategy implements IStrategy {
 
   private IContext context;
-  private ExecutorService executor;
+  private ExecutorService executor; // original executor, perhaps for orders?
+  private ExecutorService eventProcessor; // New executor for JForex events
 
   private final Set<Instrument> subscribedInstruments = new HashSet<>();
   private final Set<Period> configuredPeriods = new HashSet<>();
@@ -47,10 +50,20 @@ public class TradingStrategy implements IStrategy {
 
   @Override
   public void onStart(IContext context) {
+    log.info("TradingStrategy onStart entered. Context: {}", context != null ? "not null" : "null");
+    if (forexProperties != null) {
+      log.info("Configured instruments: {}", forexProperties.getInstruments());
+      log.info("Configured periods: {}", forexProperties.getPeriods());
+    } else {
+      log.error("forexProperties is null!");
+    }
     this.context = context;
     if (this.executor == null) {
         this.executor = Executors.newSingleThreadExecutor();
     }
+    // Initialize the event processor for asynchronous handling of ticks/bars/messages
+    this.eventProcessor = Executors.newSingleThreadExecutor();
+
     if (context != null) {
       // Subscribe to instruments from configuration
       if (forexProperties.getInstruments() != null && !forexProperties.getInstruments().isEmpty()) {
@@ -58,8 +71,11 @@ public class TradingStrategy implements IStrategy {
             .map(String::trim)
             .map(name -> {
               try {
-                return Instrument.fromString(name);
+                Instrument inst = Instrument.fromString(name);
+                log.info("Converted string '{}' to instrument: {}", name, inst);
+                return inst;
               } catch (Exception e) {
+                log.error("Failed to convert '{}' to instrument", name, e);
                 redisService.publishError("Invalid instrument name in configuration: " + name);
                 return null;
               }
@@ -69,11 +85,15 @@ public class TradingStrategy implements IStrategy {
 
         if (!instrumentsToSubscribe.isEmpty()) {
           this.subscribedInstruments.addAll(instrumentsToSubscribe);
+          log.info("Subscribing to instruments: {}", this.subscribedInstruments);
           context.setSubscribedInstruments(this.subscribedInstruments, true);
           String subscribed = instrumentsToSubscribe.stream()
               .map(Instrument::name)
               .collect(Collectors.joining(", "));
+          log.info("Successfully subscribed to instruments: {}", subscribed);
           redisService.publishInfo("Successfully subscribed to instruments: " + subscribed);
+        } else {
+          log.warn("No valid instruments to subscribe to!");
         }
       }
 
@@ -93,21 +113,55 @@ public class TradingStrategy implements IStrategy {
             .collect(Collectors.toSet());
         this.configuredPeriods.addAll(periodsToProcess);
         String periods = periodsToProcess.stream().map(Period::toString).collect(Collectors.joining(", "));
+        log.info("Will process bars for periods: {}", periods);
         redisService.publishInfo("Will process bars for periods: " + periods);
 
-        // Preload historical data
-        try {
-          IHistory history = context.getHistory();
-          for (Instrument instrument : this.subscribedInstruments) {
-            for (Period period : this.configuredPeriods) {
-              System.out.println("Preloading historical data for " + instrument.toString() + " and period " + period);
-              history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, klineStorageLimit, context.getTime(), 0);
+        // Preload historical data ASYNCHRONOUSLY to avoid blocking JForex start thread
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+              log.info("Async History Preloader: Waiting for instrument subscriptions to complete...");
+              try {
+                Thread.sleep(5000);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+              IHistory history = context.getHistory();
+              log.info("Async History Preloader: klineStorageLimit: {}, contextTime: {}", klineStorageLimit, context.getTime());
+              for (Instrument instrument : this.subscribedInstruments) {
+                String instrumentName = instrument.toString();
+                for (Period period : this.configuredPeriods) {
+                  try {
+                    log.info("Async History Preloader: Requesting historical data for {} and period {}", instrumentName, period);
+                    // Calculate range: end at the start of the last COMPLETED bar
+                    long to = history.getPreviousBarStart(period, context.getTime());
+                    long from = to - (klineStorageLimit * period.getInterval());
+                    
+                    // Use the from/to signature which is sometimes more reliable
+                    List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, from, to);
+                    
+                    if (bars != null && !bars.isEmpty()) {
+                        log.info("Async History Preloader: Received {} historical bars for {} and period {}", bars.size(), instrumentName, period);
+                        if (instrumentName != null) {
+                            for (IBar bar : bars) {
+                                BarDTO barDTO = new BarDTO(instrumentName, period.toString(), bar);
+                                // Process the bar using the sequential event processor
+                                eventProcessor.submit(() -> kLineManager.onBar(instrumentName, barDTO));
+                            }
+                        }
+                    } else if (bars != null) {
+                        log.warn("Async History Preloader: Received 0 bars for {} and period {} in range {} to {}", instrumentName, period, from, to);
+                    } else {
+                        log.warn("Async History Preloader: Received null bars for {} and period {}", instrumentName, period);
+                    }
+                  } catch (Exception e) {
+                    log.error("Async History Preloader: Failed to preload historical data for {} and period {}", instrumentName, period, e);
+                  }
+                }
+              }
+            } catch (Exception e) {
+              log.error("Async History Preloader encountered a general error", e);
             }
-          }
-        } catch (JFException e) {
-          redisService.publishError("Failed to preload historical data: " + e.getMessage());
-          e.printStackTrace();
-        }
+        });
       }
 
       redisService.publishGatewayStatus(
@@ -120,9 +174,9 @@ public class TradingStrategy implements IStrategy {
   @Override
   public void onTick(Instrument instrument, ITick tick) {
     if (instrument != null && tick != null && subscribedInstruments.contains(instrument)) {
-      String instrumentName = instrument.name();
-      if (instrumentName != null) {
-        tickManager.onTick(instrumentName, tick);
+      String instrumentName = instrument.toString();
+      if (instrumentName != null && eventProcessor != null && !eventProcessor.isShutdown()) {
+        eventProcessor.submit(() -> tickManager.onTick(instrumentName, tick));
       }
     }
   }
@@ -134,40 +188,51 @@ public class TradingStrategy implements IStrategy {
         && bidBar != null
         && subscribedInstruments.contains(instrument)
         && configuredPeriods.contains(period)) {
-      String instrumentName = instrument.name();
+      String instrumentName = instrument.toString();
       String periodName = period.toString();
-      if (instrumentName != null && periodName != null) {
-        BarDTO barDTO = new BarDTO(instrumentName, periodName, bidBar);
-        kLineManager.onBar(instrumentName, barDTO);
+      
+      if (instrumentName != null && periodName != null && eventProcessor != null && !eventProcessor.isShutdown()) {
+        eventProcessor.submit(() -> {
+            log.info("Processing live bar: {} {} Time: {}", instrumentName, periodName, bidBar.getTime());
+            BarDTO barDTO = new BarDTO(instrumentName, periodName, bidBar);
+            kLineManager.onBar(instrumentName, barDTO);
+        });
       }
     }
   }
 
   @Override
   public void onMessage(IMessage message) {
-    if (message != null) {
-      redisService.publishOrderEvent(message);
-      try {
-        IOrder order = message.getOrder();
-        if (order != null && order.getState() == IOrder.State.FILLED) {
-          System.out.println("Order filled: " + order.getLabel());
-        }
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
+    if (message != null && eventProcessor != null && !eventProcessor.isShutdown()) {
+      eventProcessor.submit(() -> {
+          redisService.publishOrderEvent(message);
+          try {
+            IOrder order = message.getOrder();
+            if (order != null && order.getState() == IOrder.State.FILLED) {
+              log.info("Order filled: {}", order.getLabel());
+            }
+          } catch (Exception e) {
+            log.error("Error processing order message", e);
+          }
+      });
     }
   }
 
   @Override
   public void onAccount(IAccount account) {
-    if (account != null) {
-      redisService.publishAccountStatus(account.getBalance(), account.getEquity());
+    if (account != null && eventProcessor != null && !eventProcessor.isShutdown()) {
+      eventProcessor.submit(() -> redisService.publishAccountStatus(account.getBalance(), account.getEquity()));
     }
   }
 
   @Override
   public void onStop() {
-    executor.shutdown();
+    if (executor != null) {
+        executor.shutdown();
+    }
+    if (eventProcessor != null) {
+        eventProcessor.shutdown();
+    }
     redisService.publishGatewayStatus(
         new GatewayStatusDTO("DISCONNECTED", "Trading strategy stopped."));
     redisService.publishInfo("Trading strategy stopped.");
@@ -268,7 +333,7 @@ public class TradingStrategy implements IStrategy {
                 return;
             }
 
-            String name = instrument.name();
+            String name = instrument.toString();
             ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
             ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
 
