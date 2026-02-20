@@ -65,7 +65,7 @@ public class RedisServiceTest {
         when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
         BarDTO bar = new BarDTO("EUR/USD", "1MIN", iBar);
         byte[] barData = "mocked-bar-data".getBytes();
-        String expectedKey = "kline:EURUSD:1MIN";
+        String expectedKey = "kline:EUR/USD:1MIN";
         mockedEncoder.when(() -> MsgpackEncoder.encode(bar)).thenReturn(barData);
 
         redisService.addBarToKLine(bar);
@@ -102,7 +102,7 @@ public class RedisServiceTest {
     public void testGetKLine_Success() {
         String instrument = "EUR/USD";
         String period = "1MIN";
-        String expectedKey = "kline:EURUSD:1MIN";
+        String expectedKey = "kline:EUR/USD:1MIN";
         byte[] barData = "mocked-bar-data".getBytes();
         List<byte[]> barDataList = Collections.singletonList(barData);
         BarDTO expectedBar = new BarDTO(instrument, period, iBar);
@@ -121,7 +121,7 @@ public class RedisServiceTest {
     public void testGetKLine_EmptyList() {
         String instrument = "EUR/USD";
         String period = "1MIN";
-        String expectedKey = "kline:EURUSD:1MIN";
+        String expectedKey = "kline:EUR/USD:1MIN";
 
         when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
         when(listOperationsBytes.range(expectedKey, 0, -1)).thenReturn(Collections.emptyList());
@@ -138,7 +138,7 @@ public class RedisServiceTest {
     public void testPublishTick() {
         TickDTO tick = new TickDTO("EUR/USD", 123L, 1.1, 1.2);
         byte[] tickData = "mocked-tick-data".getBytes();
-        String expectedChannel = "tick:EURUSD";
+        String expectedChannel = "tick:EUR/USD";
         mockedEncoder.when(() -> MsgpackEncoder.encode(tick)).thenReturn(tickData);
 
         redisService.publishTick(tick);
@@ -148,9 +148,9 @@ public class RedisServiceTest {
 
     @Test
     public void testPublishBar() {
-        BarDTO bar = new BarDTO("GBP/USD", "5MINS", iBar);
+        BarDTO bar = new BarDTO("GBP/USD", "5 Mins", iBar);
         byte[] barData = "mocked-bar-data".getBytes();
-        String expectedChannel = "kline:GBPUSD:5MINS";
+        String expectedChannel = "kline:GBP/USD:5Min";
         mockedEncoder.when(() -> MsgpackEncoder.encode(bar)).thenReturn(barData);
 
         redisService.publishBar(bar);
