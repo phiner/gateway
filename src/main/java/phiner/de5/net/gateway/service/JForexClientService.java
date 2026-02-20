@@ -18,16 +18,22 @@ public class JForexClientService {
 
     private final JForexProperties jForexProperties;
     private final TradingStrategy tradingStrategy;
+    private final RedisService redisService;
     private IClient client;
 
     @PostConstruct
     public void init() {
         try {
+            log.info("Checking Redis connection...");
+            redisService.testConnection();
+            log.info("Redis connection established.");
+
             this.client = ClientFactory.getDefaultInstance();
             setupListener();
             connect();
         } catch (Exception e) {
-            log.error("Failed to initialize JForex client: {}", e.getMessage());
+            log.error("PRECONDITION FAILED: Redis must be connected before starting JForex gateway. Error: {}", e.getMessage());
+            System.exit(1);
         }
     }
 
