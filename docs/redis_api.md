@@ -20,7 +20,7 @@
 
 ### 市场数据
 
-**重要提示**: 所有频道名称中的交易品种（instrument），例如 `EUR/USD`，都会被**移除斜杠**处理，变为 `EUR/USD`。下文所有示例均已遵循此格式。
+**重要提示**: 所有频道名称中的交易品种（instrument），例如 `EUR/USD`，在 Redis 的 Channel 和 Key 中都会**完整保留斜杠 (`/`)**。下文所有示例均已遵循此格式。
 
 #### ▶️ `tick:{instrument}`
 发布一个交易品种的最新买卖报价。
@@ -44,12 +44,12 @@
 
 #### ▶️ `kline:{instrument}:{period}`
 发布一个指定品种和周期的已闭合K线。
-*   **频道示例**: `kline:EUR/USD:ONE_MIN`
+*   **频道示例**: `kline:EUR/USD:1Min`
 *   **负载示例**:
     ```json
     {
       "instrument": "EUR/USD",
-      "period": "ONE_MIN",
+      "period": "1Min",
       "time": 1678886400000,
       "open": 1.07499,
       "close": 1.07509,
@@ -61,7 +61,7 @@
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
     | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
-    | `period` | String | 是 | K线周期, 必须为JForex `Period`枚举的标准名称, e.g., "ONE_MIN", "FIVE_MINS", "ONE_HOUR", "DAILY" |
+    | `period` | String | 是 | K线周期, e.g., "1Min", "5Min", "1Hour", "Daily" |
     | `time` | Long | 是 | K线开盘时间 (Unix 毫秒) |
     | `open` | Double | 是 | 开盘价 |
     | `close` | Double | 是 | 收盘价 |
@@ -74,8 +74,8 @@
 
 *   **操作**: 使用 Redis 的 `LRANGE` 命令。
 *   **Key 格式**: `kline:{instrument}:{period}`
-*   **Key 示例**: `kline:EUR/USD:ONE_MIN`
-*   **命令示例**: `LRANGE kline:EUR/USD:ONE_MIN 0 -1`
+*   **Key 示例**: `kline:EUR/USD:1Min`
+*   **命令示例**: `LRANGE kline:EUR/USD:1Min 0 -1`
 
 **响应**:
 

@@ -32,7 +32,7 @@ public class JForexClientService {
             setupListener();
             connect();
         } catch (Exception e) {
-            log.error("PRECONDITION FAILED: Redis must be connected before starting JForex gateway. Error: {}", e.getMessage());
+            log.error("PRECONDITION FAILED: Redis must be connected before starting JForex gateway.", e);
             System.exit(1);
         }
     }
