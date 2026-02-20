@@ -45,14 +45,14 @@ public class TickManagerTest {
         when(tick.getBid()).thenReturn(bid);
 
         // When
-        tickManager.onTick(instrument.name(), tick);
+        tickManager.onTick(instrument.toString(), tick);
 
         // Then
         ArgumentCaptor<TickDTO> tickCaptor = ArgumentCaptor.forClass(TickDTO.class);
         verify(redisService).publishTick(tickCaptor.capture());
 
         TickDTO capturedTick = tickCaptor.getValue();
-        assertEquals(instrument.name(), capturedTick.getInstrument());
+        assertEquals(instrument.toString(), capturedTick.getInstrument());
         assertEquals(currentTime, capturedTick.getTime());
         assertEquals(ask, capturedTick.getAsk());
         assertEquals(bid, capturedTick.getBid());

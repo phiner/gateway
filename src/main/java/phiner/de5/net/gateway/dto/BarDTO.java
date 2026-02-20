@@ -23,12 +23,10 @@ public class BarDTO {
 
     private String formatPeriod(String period) {
         if (period == null) return null;
-        // e.g., "15 Mins" -> "15Mins" -> "15Min"
+        // e.g., "15 Mins" -> "15Mins" -> "15Min", "5MINS" -> "5MIN" -> "5Min" (if we want to be very precise)
+        // Let's stick to simple: remove space, then remove trailing 's' or 'S' if it exists.
         String formatted = period.replace(" ", "");
-        if (formatted.endsWith("s") && !formatted.equalsIgnoreCase("Mins")) {
-            // Keep "Mins" as "Min"
-            formatted = formatted.substring(0, formatted.length() - 1);
-        } else if (formatted.endsWith("Mins")) {
+        if (formatted.length() > 1 && (formatted.endsWith("s") || formatted.endsWith("S"))) {
             formatted = formatted.substring(0, formatted.length() - 1);
         }
         return formatted;
