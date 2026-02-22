@@ -388,7 +388,7 @@ public class TradingStrategy implements IStrategy {
                     name,
                     currency,
                     instrument.getPipValue(),
-                    instrument.getPipValue() / 10,
+                    Math.pow(10, -instrument.getTickScale()),
                     name
             );
 
