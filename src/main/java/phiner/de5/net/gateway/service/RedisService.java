@@ -62,7 +62,7 @@ public class RedisService {
       redisTemplateBytes.opsForList().leftPush(Objects.requireNonNull(redisKey), barData);
       redisTemplateBytes.opsForList().trim(Objects.requireNonNull(redisKey), 0, klineStorageLimit - 1);
     } catch (Exception e) {
-      log.error("RedisService: Error while writing to Redis for key '{}'.", redisKey, e);
+      log.warn("RedisService: Failed to write bar to key {}: {}", redisKey, e.getMessage());
     }
   }
 
@@ -80,16 +80,14 @@ public class RedisService {
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      System.err.println(
-          "RedisService: Error while reading K-line from Redis for key '" + redisKey + "'.");
-      e.printStackTrace();
+      log.error("RedisService: Error while reading K-line from Redis for key '{}': {}", redisKey, e.getMessage());
       return Collections.emptyList();
     }
   }
 
   public void publishTick(@NonNull TickDTO tick) {
     if (tick.getInstrument() == null) {
-      System.err.println("RedisService: Cannot publish tick with null instrument.");
+      log.error("RedisService: Cannot publish tick with null instrument.");
       return;
     }
     String channel = "tick:" + tick.getInstrument();
@@ -99,14 +97,13 @@ public class RedisService {
         redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
       }
     } catch (Exception e) {
-      System.err.println("Failed to publish tick: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish tick on channel {}: {}", channel, e.getMessage());
     }
   }
 
   public void publishBar(@NonNull BarDTO bar) {
     if (bar.getInstrument() == null || bar.getPeriod() == null) {
-      System.err.println("RedisService: Cannot publish bar with null instrument/period.");
+      log.error("RedisService: Cannot publish bar with null instrument/period.");
       return;
     }
     String channel = String.format("kline:%s:%s", bar.getInstrument(), bar.getPeriod());
@@ -116,8 +113,7 @@ public class RedisService {
         redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
       }
     } catch (Exception e) {
-      System.err.println("Failed to publish bar: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish bar on channel {}: {}", channel, e.getMessage());
     }
   }
 
@@ -128,15 +124,13 @@ public class RedisService {
       byte[] data = MsgpackEncoder.encode(eventDTO);
 
       if (data == null) {
-        System.err.println(
-            "RedisService: Failed to serialize OrderEventDTO. MessagePack data is null.");
+        log.error("RedisService: Failed to serialize OrderEventDTO. MessagePack data is null.");
         return;
       }
 
       redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
     } catch (Exception e) {
-      System.err.println("Failed to publish order event: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish order event: {}", e.getMessage());
     }
   }
 
@@ -150,8 +144,7 @@ public class RedisService {
         redisTemplateBytes.convertAndSend(channel, data);
       }
     } catch (Exception e) {
-      System.err.println("Failed to publish account status: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish account status: {}", e.getMessage());
     }
   }
 
@@ -160,8 +153,7 @@ public class RedisService {
     try {
       redisTemplateString.convertAndSend(Objects.requireNonNull(channel), errorMessage);
     } catch (Exception e) {
-      System.err.println("Failed to publish error message: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish error message to {}: {}", channel, e.getMessage());
     }
   }
 
@@ -170,8 +162,7 @@ public class RedisService {
     try {
       redisTemplateString.convertAndSend(Objects.requireNonNull(channel), infoMessage);
     } catch (Exception e) {
-      System.err.println("Failed to publish info message: " + e.getMessage());
-      e.printStackTrace();
+      log.warn("Failed to publish info message to {}: {}", channel, e.getMessage());
     }
   }
 
@@ -183,8 +174,7 @@ public class RedisService {
                 redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
             }
         } catch (Exception e) {
-            System.err.println("Failed to publish gateway status: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Failed to publish gateway status: {}", e.getMessage());
         }
     }
 
@@ -196,8 +186,7 @@ public class RedisService {
                 redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
             }
         } catch (Exception e) {
-            System.err.println("Failed to publish instrument info: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Failed to publish instrument info for request {}: {}", requestId, e.getMessage());
         }
     }
 
@@ -206,6 +195,32 @@ public class RedisService {
             redisTemplateBytes.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> connection.ping());
         } catch (Exception e) {
             throw new RuntimeException("Redis connection check failed: " + e.getMessage(), e);
+        }
+    }
+
+    public void saveConfigInstruments(@NonNull List<String> instruments) {
+        String key = "gateway:config:instruments";
+        try {
+            redisTemplateString.delete(key);
+            if (!instruments.isEmpty()) {
+                redisTemplateString.opsForSet().add(key, instruments.toArray(new String[0]));
+                log.info("Saved {} instruments to Redis set: {}", instruments.size(), key);
+            }
+        } catch (Exception e) {
+            log.error("Failed to save config instruments to Redis: {}", e.getMessage(), e);
+        }
+    }
+
+    public void saveConfigPeriods(@NonNull List<String> periods) {
+        String key = "gateway:config:periods";
+        try {
+            redisTemplateString.delete(key);
+            if (!periods.isEmpty()) {
+                redisTemplateString.opsForSet().add(key, periods.toArray(new String[0]));
+                log.info("Saved {} periods to Redis set: {}", periods.size(), key);
+            }
+        } catch (Exception e) {
+            log.error("Failed to save config periods to Redis: {}", e.getMessage(), e);
         }
     }
 }

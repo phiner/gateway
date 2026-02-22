@@ -309,3 +309,22 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
     | `orderId` | String | 是 | 要取消的挂单的唯一ID |
+
+---
+
+## 4. 系统配置 (静态 Keys)
+这些 Key 存储了网关的当前配置，供其他应用在启动或运行时读取。
+
+#### ⚙️ `gateway:config:instruments` (Set)
+存储网关当前订阅的所有交易品种。
+*   **Key**: `gateway:config:instruments`
+*   **类型**: Redis Set
+*   **命令示例**: `SMEMBERS gateway:config:instruments`
+*   **内容示例**: `EUR/USD`, `GBP/USD`, `USD/JPY`
+
+#### ⚙️ `gateway:config:periods` (Set)
+存储网关当前处理的所有 K 线周期。
+*   **Key**: `gateway:config:periods`
+*   **类型**: Redis Set
+*   **命令示例**: `SMEMBERS gateway:config:periods`
+*   **内容示例**: `FIVE_MINS`, `FIFTEEN_MINS`, `DAILY`

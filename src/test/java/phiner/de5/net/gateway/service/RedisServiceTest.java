@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ListOperations;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import phiner.de5.net.gateway.MsgpackDecoder;
@@ -33,6 +34,9 @@ public class RedisServiceTest {
 
     @Mock
     private ListOperations<String, byte[]> listOperationsBytes;
+
+    @Mock
+    private SetOperations<String, String> setOperationsString;
 
     @Mock
     private IBar iBar;
@@ -232,6 +236,30 @@ public class RedisServiceTest {
         redisService.publishInstrumentInfo(infoDTO, requestId);
 
         verify(redisTemplateBytes).convertAndSend(expectedChannel, infoData);
+    }
+
+    @Test
+    public void testSaveConfigInstruments() {
+        List<String> instruments = List.of("EUR/USD", "GBP/USD");
+        String key = "gateway:config:instruments";
+        when(redisTemplateString.opsForSet()).thenReturn(setOperationsString);
+
+        redisService.saveConfigInstruments(instruments);
+
+        verify(redisTemplateString).delete(key);
+        verify(setOperationsString).add(key, instruments.toArray(new String[0]));
+    }
+
+    @Test
+    public void testSaveConfigPeriods() {
+        List<String> periods = List.of("FIVE_MINS", "DAILY");
+        String key = "gateway:config:periods";
+        when(redisTemplateString.opsForSet()).thenReturn(setOperationsString);
+
+        redisService.saveConfigPeriods(periods);
+
+        verify(redisTemplateString).delete(key);
+        verify(setOperationsString).add(key, periods.toArray(new String[0]));
     }
     //</editor-fold>
 
