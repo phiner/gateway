@@ -209,7 +209,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | `name` | String | 是 | 交易品种名称 (带斜杠) |
         | `currency` | String | 是 | 基础/报价货币对 |
         | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
-        | `point`| Double | 是 | 以微点为单位的点值 (当前硬编码为 `pip / 10`) |
+        | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
         | `description`| String | 是 | 交易品种描述 (当前与'name'字段相同) |
 
 ---
