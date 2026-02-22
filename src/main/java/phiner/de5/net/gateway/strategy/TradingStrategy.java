@@ -406,6 +406,40 @@ public class TradingStrategy implements IStrategy {
         }
     }
 
+    public void handlePositionsRequest(@NonNull phiner.de5.net.gateway.request.PositionsRequest request) {
+        String requestId = request.getRequestId();
+        if (requestId == null) {
+            log.error("PositionsRequest has no requestId");
+            return;
+        }
+
+        try {
+            if (context == null || context.getEngine() == null) {
+                redisService.publishError("Engine not available to fetch positions for request: " + requestId);
+                return;
+            }
+
+            List<IOrder> orders = context.getEngine().getOrders();
+            List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
+            
+            for (IOrder order : orders) {
+                if (order.getState() == IOrder.State.FILLED) {
+                    positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
+                }
+            }
+
+            phiner.de5.net.gateway.dto.PositionListResponseDTO responseDTO = 
+                new phiner.de5.net.gateway.dto.PositionListResponseDTO(positions);
+            
+            redisService.publishPositions(responseDTO, requestId);
+            log.info("Published {} positions for requestId: {}", positions.size(), requestId);
+
+        } catch (Exception e) {
+            log.error("Error handling positions request", e);
+            redisService.publishError("Error fetching positions: " + e.getMessage());
+        }
+    }
+
     private void saveInstrumentDetailsToRedis(@NonNull Instrument instrument) {
         try {
             String name = instrument.toString();

@@ -190,6 +190,18 @@ public class RedisService {
         }
     }
 
+    public void publishPositions(@NonNull phiner.de5.net.gateway.dto.PositionListResponseDTO response, @NonNull String requestId) {
+        String channel = String.format("info:positions:response:%s", requestId);
+        try {
+            byte[] data = MsgpackEncoder.encode(response);
+            if (data != null) {
+                redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to publish positions for request {}: {}", requestId, e.getMessage());
+        }
+    }
+
     public void testConnection() {
         try {
             redisTemplateBytes.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> connection.ping());

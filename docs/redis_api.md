@@ -211,6 +211,35 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
         | `description`| String | 是 | 交易品种描述 |
 
+### 获取所有当前持仓
+
+1.  **客户端发布请求**:
+    *   **频道**: `system:request:positions`
+    *   **负载示例**:
+        ```json
+        {
+          "requestId": "sync-req-999"
+        }
+        ```
+
+2.  **网关发布响应**:
+    *   **频道**: `info:positions:response:{requestId}`
+    *   **负载示例**:
+        ```json
+        {
+          "positions": [
+            {
+              "dealId": "D123",
+              "dealReference": "PivotSniper-1Min-EUR/USD",
+              "instrument": "EUR/USD",
+              "direction": "BUY",
+              "amount": 0.01,
+              "openPrice": 1.075,
+              "profitLoss": 15.2
+            }
+          ]
+        }
+        ```
 
 ---
 
