@@ -171,7 +171,7 @@ public class TradingStrategy implements IStrategy {
             } catch (Exception e) {
               log.error("Async History Preloader encountered a general error", e);
             }
-        });
+        }, this.executor);
       }
 
       redisService.publishGatewayStatus(
@@ -237,15 +237,38 @@ public class TradingStrategy implements IStrategy {
 
   @Override
   public void onStop() {
+    log.info("TradingStrategy stopping. Shutting down executors...");
     if (executor != null) {
         executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
     if (eventProcessor != null) {
         eventProcessor.shutdown();
+        try {
+            if (!eventProcessor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                eventProcessor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            eventProcessor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
-    redisService.publishGatewayStatus(
-        new GatewayStatusDTO("DISCONNECTED", "Trading strategy stopped."));
-    redisService.publishInfo("Trading strategy stopped.");
+    
+    try {
+        redisService.publishGatewayStatus(
+            new GatewayStatusDTO("DISCONNECTED", "Trading strategy stopped."));
+        redisService.publishInfo("Trading strategy stopped.");
+    } catch (Exception e) {
+        log.warn("Could not publish final disconnect status to Redis: {}", e.getMessage());
+    }
+    log.info("TradingStrategy stopped.");
   }
 
   public IContext getContext() {

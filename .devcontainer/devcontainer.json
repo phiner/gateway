@@ -1,20 +1,13 @@
 {
-    "name": "Spring Boot Podman Env",
+    "name": "Spring Boot Gateway",
     "image": "mcr.microsoft.com/devcontainers/java:21-bookworm",
-    "containerUser": "vscode",
-    "remoteUser": "vscode",
-    "updateRemoteUserUID": false,
+    "containerUser": "root",
+    "remoteUser": "root",
+    "updateRemoteUserUID": true,
     "runArgs": [
-        //"--userns=keep-id",
         "--security-opt",
-        "label=disable",
-        "--user",
-        "1000:1000",
-        "--userns=keep-id:uid=1000,gid=1000"
+        "label=disable"
     ],
-    "containerEnv": {
-        "DONT_PROMPT_WSL_INSTALL": "true"
-    },
     "features": {
         "ghcr.io/devcontainers/features/java:1": {
             "installMaven": "true"
@@ -23,7 +16,6 @@
             "packages": "redis-tools"
         }
     },
-    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y redis-tools",
     "customizations": {
         "antigravity": {
             "extensions": [
