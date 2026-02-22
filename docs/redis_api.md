@@ -171,7 +171,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 ---
 
 ## 2. 请求/响应频道
-客户端 **PUBLISH** (发布) 一个请求，并 **SUBSCRIBE** (订阅) 一个唯一的响应频道。
+客户端 **PUBLISH** (发布) 一个请求，并在指定的频道上监听响应。**注意**: 即使是动态请求的信息，网关在响应的同时也会更新 `gateway:config:instrument_info` 静态键。
 
 ### 获取交易品种信息
 
@@ -192,7 +192,6 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 
 2.  **网关发布响应**:
     *   **频道**: `info:instrument:response:{requestId}` (`requestId` 是请求中包含的ID)。
-    *   **响应频道示例**: `info:instrument:response:ai-tool-req-12345`
     *   **负载示例**:
         ```json
         {
@@ -210,7 +209,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | `currency` | String | 是 | 基础/报价货币对 |
         | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
         | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
-        | `description`| String | 是 | 交易品种描述 (当前与'name'字段相同) |
+        | `description`| String | 是 | 交易品种描述 |
+
 
 ---
 
@@ -328,3 +328,20 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **类型**: Redis Set
 *   **命令示例**: `SMEMBERS gateway:config:periods`
 *   **内容示例**: `FIVE_MINS`, `FIFTEEN_MINS`, `DAILY`
+
+#### ⚙️ `gateway:config:instrument_info` (Hash)
+存储每个交易品种的详细属性（Pip值、最小报价单位等）。
+*   **Key**: `gateway:config:instrument_info`
+*   **类型**: Redis Hash
+*   **Field**: 交易品种名称 (e.g., `EUR/USD`)
+*   **Value**: MessagePack 编码的 `InstrumentInfoDTO` 对象
+*   **命令示例**: `HGET gateway:config:instrument_info "EUR/USD"`
+*   **字段说明**:
+    | 字段名 | 类型 | 是否必需 | 描述 |
+    | :--- | :--- | :--- | :--- |
+    | `name` | String | 是 | 交易品种名称 (带斜杠) |
+    | `currency` | String | 是 | 基础/报价货币对 |
+    | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
+    | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
+    | `description`| String | 是 | 交易品种描述 (当前内容与 name 相同) |
+

@@ -92,6 +92,11 @@ public class TradingStrategy implements IStrategy {
               .collect(Collectors.joining(", "));
           log.info("Successfully subscribed to instruments: {}", subscribed);
           redisService.publishInfo("Successfully subscribed to instruments: " + subscribed);
+          
+          // Save detailed instrument info to Redis static keys
+          for (Instrument instrument : this.subscribedInstruments) {
+              saveInstrumentDetailsToRedis(instrument);
+          }
         } else {
           log.warn("No valid instruments to subscribe to!");
         }
@@ -392,10 +397,37 @@ public class TradingStrategy implements IStrategy {
                     name
             );
 
+            // Both update the static cache and publish the response
+            redisService.saveInstrumentInfo(infoDTO);
             redisService.publishInstrumentInfo(infoDTO, requestId);
 
         } catch (Exception e) {
             redisService.publishError("Error fetching instrument info for " + instrumentName + ": " + e.getMessage());
+        }
+    }
+
+    private void saveInstrumentDetailsToRedis(@NonNull Instrument instrument) {
+        try {
+            String name = instrument.toString();
+            ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
+            ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
+
+            if (name == null || primaryCurrency == null || secondaryCurrency == null) {
+                log.error("Failed to fetch full instrument details for {}", instrument);
+                return;
+            }
+
+            String currency = primaryCurrency.getCurrencyCode() + "/" + secondaryCurrency.getCurrencyCode();
+            InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
+                    name,
+                    currency,
+                    instrument.getPipValue(),
+                    Math.pow(10, -instrument.getTickScale()),
+                    name
+            );
+            redisService.saveInstrumentInfo(infoDTO);
+        } catch (Exception e) {
+            log.error("Error saving instrument info for {} to Redis", instrument, e);
         }
     }
 

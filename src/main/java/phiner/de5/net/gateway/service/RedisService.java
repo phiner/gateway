@@ -223,4 +223,17 @@ public class RedisService {
             log.error("Failed to save config periods to Redis: {}", e.getMessage(), e);
         }
     }
+
+    public void saveInstrumentInfo(@NonNull InstrumentInfoDTO info) {
+        String key = "gateway:config:instrument_info";
+        try {
+            byte[] data = MsgpackEncoder.encode(info);
+            if (data != null) {
+                redisTemplateBytes.opsForHash().put(key, info.getName(), data);
+                log.info("Saved instrument info for {} to Redis hash: {}", info.getName(), key);
+            }
+        } catch (Exception e) {
+            log.error("Failed to save instrument info for {} to Redis: {}", info.getName(), e.getMessage(), e);
+        }
+    }
 }
