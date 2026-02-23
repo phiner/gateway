@@ -284,7 +284,8 @@ public class TradingStrategy implements IStrategy {
       this.executor = executor;
   }
 
-  public void executeMarketOrder(OpenMarketOrderRequest request) throws JFException {
+  public void executeMarketOrder(OpenMarketOrderRequest request) {
+        runTask(() -> {
         Instrument instrument = Instrument.fromString(request.getInstrument());
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
         double amount = request.getAmount();
@@ -300,75 +301,86 @@ public class TradingStrategy implements IStrategy {
                 request.getStopLossPrice() != null ? request.getStopLossPrice() : 0, // stopLossPrice
                 request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0 // takeProfitPrice
         );
+            return null;
+        }, "Open Market Order [" + request.getInstrument() + "]");
     }
 
-    public void closeMarketOrder(CloseMarketOrderRequest request) throws JFException {
+    public void closeMarketOrder(CloseMarketOrderRequest request) {
+        runTask(() -> {
         IOrder order = context.getEngine().getOrderById(request.getOrderId());
         if (order != null) {
-            order.close();
-        }
+                order.close();
+            } else {
+                log.warn("Could not find order to close: {}", request.getOrderId());
+            }
+            return null;
+        }, "Close Market Order [" + request.getOrderId() + "]");
     }
 
-    public void submitOrder(SubmitOrderRequest request) throws JFException {
-        Instrument instrument = Instrument.fromString(request.getInstrument());
-        IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
-        String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
+    public void submitOrder(SubmitOrderRequest request) {
+        runTask(() -> {
+            Instrument instrument = Instrument.fromString(request.getInstrument());
+            IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
+            String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
 
-        double stopLossPrice = request.getStopLossPrice();
-        double takeProfitPrice = request.getTakeProfitPrice();
-
-        context.getEngine().submitOrder(
-                label,
-                instrument,
-                command,
-                request.getAmount(),
-                request.getPrice(),
-                0, // slippage for pending orders is not applicable in the same way
-                stopLossPrice,
-                takeProfitPrice
-        );
-    }
-
-    public void modifyOrder(ModifyOrderRequest request) throws JFException {
-        IOrder order = context.getEngine().getOrderById(request.getOrderId());
-        if (order != null) {
             double stopLossPrice = request.getStopLossPrice();
             double takeProfitPrice = request.getTakeProfitPrice();
 
-            if (stopLossPrice > 0) {
-                order.setStopLossPrice(stopLossPrice);
-            }
-            if (takeProfitPrice > 0) {
-                order.setTakeProfitPrice(takeProfitPrice);
-            }
-        }
+            context.getEngine().submitOrder(
+                    label,
+                    instrument,
+                    command,
+                    request.getAmount(),
+                    request.getPrice(),
+                    0, // slippage for pending orders is not applicable in the same way
+                    stopLossPrice,
+                    takeProfitPrice
+            );
+            return null;
+        }, "Submit Order [" + request.getInstrument() + "]");
     }
 
-    public void cancelOrder(CancelOrderRequest request) throws JFException {
-        IOrder order = context.getEngine().getOrderById(request.getOrderId());
-        if (order != null && order.getState() == IOrder.State.OPENED) {
-            order.close();
-        }
+    public void modifyOrder(ModifyOrderRequest request) {
+        runTask(() -> {
+            IOrder order = context.getEngine().getOrderById(request.getOrderId());
+            if (order != null) {
+                double stopLossPrice = request.getStopLossPrice();
+                double takeProfitPrice = request.getTakeProfitPrice();
+
+                if (stopLossPrice > 0) {
+                    order.setStopLossPrice(stopLossPrice);
+                }
+                if (takeProfitPrice > 0) {
+                    order.setTakeProfitPrice(takeProfitPrice);
+                }
+            } else {
+                log.warn("Could not find order to modify: {}", request.getOrderId());
+            }
+            return null;
+        }, "Modify Order [" + request.getOrderId() + "]");
+    }
+
+    public void cancelOrder(CancelOrderRequest request) {
+        runTask(() -> {
+            IOrder order = context.getEngine().getOrderById(request.getOrderId());
+            if (order != null && order.getState() == IOrder.State.OPENED) {
+                order.close();
+            } else if (order == null) {
+                log.warn("Could not find order to cancel: {}", request.getOrderId());
+            }
+            return null;
+        }, "Cancel Order [" + request.getOrderId() + "]");
     }
 
     public void handleInstrumentInfoRequest(@NonNull InstrumentInfoRequest request) {
-        String instrumentName = request.getInstrument();
-        if (instrumentName == null) {
-            redisService.publishError("Instrument name is null in InstrumentInfoRequest.");
-            return;
-        }
+        runTask(() -> {
+            String instrumentName = request.getInstrument();
+            String requestId = request.getRequestId();
 
-        String requestId = request.getRequestId();
-        if (requestId == null) {
-            redisService.publishError("Request ID is null in InstrumentInfoRequest for instrument: " + instrumentName);
-            return;
-        }
-
-        try {
             Instrument instrument = Instrument.fromString(instrumentName);
             if (instrument == null) {
                 redisService.publishError("Instrument not found: " + instrumentName);
-                return;
+                return null;
             }
 
             String name = instrument.toString();
@@ -376,8 +388,8 @@ public class TradingStrategy implements IStrategy {
             ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
 
             if (name == null || primaryCurrency == null || secondaryCurrency == null) {
-                redisService.publishError("Error fetching instrument info for " + instrumentName + ": received null values from API for name or currency objects.");
-                return;
+                redisService.publishError("Error fetching instrument info for " + instrumentName + ": received null values from API.");
+                return null;
             }
 
             String primaryCode = primaryCurrency.getCurrencyCode();
@@ -385,7 +397,7 @@ public class TradingStrategy implements IStrategy {
 
             if (primaryCode == null || secondaryCode == null) {
                 redisService.publishError("Error fetching instrument info for " + instrumentName + ": currency code is null.");
-                return;
+                return null;
             }
 
             String currency = primaryCode + "/" + secondaryCode;
@@ -397,26 +409,18 @@ public class TradingStrategy implements IStrategy {
                     name
             );
 
-            // Both update the static cache and publish the response
             redisService.saveInstrumentInfo(infoDTO);
             redisService.publishInstrumentInfo(infoDTO, requestId);
-
-        } catch (Exception e) {
-            redisService.publishError("Error fetching instrument info for " + instrumentName + ": " + e.getMessage());
-        }
+            return null;
+        }, "Instrument Info Request [" + request.getInstrument() + "]");
     }
 
     public void handlePositionsRequest(@NonNull phiner.de5.net.gateway.request.PositionsRequest request) {
-        String requestId = request.getRequestId();
-        if (requestId == null) {
-            log.error("PositionsRequest has no requestId");
-            return;
-        }
-
-        try {
+        runTask(() -> {
+            String requestId = request.getRequestId();
             if (context == null || context.getEngine() == null) {
-                redisService.publishError("Engine not available to fetch positions for request: " + requestId);
-                return;
+                redisService.publishError("Engine not available to fetch positions.");
+                return null;
             }
 
             List<IOrder> orders = context.getEngine().getOrders();
@@ -433,11 +437,30 @@ public class TradingStrategy implements IStrategy {
             
             redisService.publishPositions(responseDTO, requestId);
             log.info("Published {} positions for requestId: {}", positions.size(), requestId);
+            return null;
+        }, "Positions Request");
+    }
 
-        } catch (Exception e) {
-            log.error("Error handling positions request", e);
-            redisService.publishError("Error fetching positions: " + e.getMessage());
+    @FunctionalInterface
+    private interface ITask<T> {
+        T onExecute() throws Exception;
+    }
+
+    private void runTask(ITask<Void> task, String errorContext) {
+        if (context == null) {
+            log.error("JForex Context is not initialized. Failed: {}", errorContext);
+            redisService.publishError("JForex Context not initialized. " + errorContext);
+            return;
         }
+        context.executeTask(() -> {
+            try {
+                return task.onExecute();
+            } catch (Exception e) {
+                log.error("Exception in JForex thread: {}", errorContext, e);
+                redisService.publishError("JForex Thread Error: " + errorContext + " - " + e.getMessage());
+                return null;
+            }
+        });
     }
 
     private void saveInstrumentDetailsToRedis(@NonNull Instrument instrument) {
