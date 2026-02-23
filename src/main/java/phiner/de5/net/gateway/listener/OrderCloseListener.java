@@ -29,9 +29,6 @@ public class OrderCloseListener implements MessageListener {
             if (request != null) {
                 tradingStrategy.closeMarketOrder(request);
             }
-        } catch (JFException e) {
-            redisService.publishError("Failed to execute close market order: " + e.getMessage());
-            e.printStackTrace();
         } catch (Exception e) {
             redisService.publishError("Failed to process close market order request: " + e.getMessage());
             e.printStackTrace();
