@@ -60,23 +60,7 @@ public class OrderOpenListenerTest {
         verifyNoInteractions(redisService);
     }
 
-    @Test
-    public void testOnMessage_jFException() throws JFException {
-        // Given
-        byte[] body = "test body".getBytes();
-        Message message = new DefaultMessage("channel".getBytes(), body);
-        JFException testException = new JFException("Test JFException");
-
-        OpenMarketOrderRequest request = new OpenMarketOrderRequest("EURUSD", 0.1, MarketOrderType.BUY, "test-label", 5.0, 1.1234, 1.1236);
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, OpenMarketOrderRequest.class)).thenReturn(request);
-        doThrow(testException).when(tradingStrategy).executeMarketOrder(request);
-
-        // When
-        listener.onMessage(message, null);
-
-        // Then
-        verify(redisService).publishError("Failed to execute open market order: " + testException.getMessage());
-    }
+    // Removed testOnMessage_jFException because executeMarketOrder no longer throws checked exceptions
 
     @Test
     public void testOnMessage_genericException() {

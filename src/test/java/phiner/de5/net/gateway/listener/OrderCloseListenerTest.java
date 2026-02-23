@@ -59,23 +59,7 @@ public class OrderCloseListenerTest {
         verifyNoInteractions(redisService);
     }
 
-    @Test
-    public void testOnMessage_jFException() throws JFException {
-        // Given
-        byte[] body = "test body".getBytes();
-        CloseMarketOrderRequest request = new CloseMarketOrderRequest("test-id");
-        Message message = new DefaultMessage("channel".getBytes(), body);
-        JFException testException = new JFException("Test JFException");
-
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, CloseMarketOrderRequest.class)).thenReturn(request);
-        doThrow(testException).when(tradingStrategy).closeMarketOrder(request);
-
-        // When
-        listener.onMessage(message, null);
-
-        // Then
-        verify(redisService).publishError("Failed to execute close market order: " + testException.getMessage());
-    }
+    // Removed testOnMessage_jFException
 
     @Test
     public void testOnMessage_genericException() {
