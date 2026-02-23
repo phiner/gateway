@@ -171,7 +171,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 ---
 
 ## 2. 请求/响应频道
-客户端 **PUBLISH** (发布) 一个请求，并 **SUBSCRIBE** (订阅) 一个唯一的响应频道。
+客户端 **PUBLISH** (发布) 一个请求，并在指定的频道上监听响应。**注意**: 即使是动态请求的信息，网关在响应的同时也会更新 `gateway:config:instrument_info` 静态键。
 
 ### 获取交易品种信息
 
@@ -192,7 +192,6 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 
 2.  **网关发布响应**:
     *   **频道**: `info:instrument:response:{requestId}` (`requestId` 是请求中包含的ID)。
-    *   **响应频道示例**: `info:instrument:response:ai-tool-req-12345`
     *   **负载示例**:
         ```json
         {
@@ -209,8 +208,38 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | `name` | String | 是 | 交易品种名称 (带斜杠) |
         | `currency` | String | 是 | 基础/报价货币对 |
         | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
-        | `point`| Double | 是 | 以微点为单位的点值 (当前硬编码为 `pip / 10`) |
-        | `description`| String | 是 | 交易品种描述 (当前与'name'字段相同) |
+        | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
+        | `description`| String | 是 | 交易品种描述 |
+
+### 获取所有当前持仓
+
+1.  **客户端发布请求**:
+    *   **频道**: `system:request:positions`
+    *   **负载示例**:
+        ```json
+        {
+          "requestId": "sync-req-999"
+        }
+        ```
+
+2.  **网关发布响应**:
+    *   **频道**: `info:positions:response:{requestId}`
+    *   **负载示例**:
+        ```json
+        {
+          "positions": [
+            {
+              "dealId": "D123",
+              "dealReference": "PivotSniper-1Min-EUR/USD",
+              "instrument": "EUR/USD",
+              "direction": "BUY",
+              "amount": 0.01,
+              "openPrice": 1.075,
+              "profitLoss": 15.2
+            }
+          ]
+        }
+        ```
 
 ---
 
@@ -309,3 +338,39 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
     | `orderId` | String | 是 | 要取消的挂单的唯一ID |
+
+---
+
+## 4. 系统配置 (静态 Keys)
+这些 Key 存储了网关的当前配置，供其他应用在启动或运行时读取。
+
+#### ⚙️ `gateway:config:instruments` (Set)
+存储网关当前订阅的所有交易品种。
+*   **Key**: `gateway:config:instruments`
+*   **类型**: Redis Set
+*   **命令示例**: `SMEMBERS gateway:config:instruments`
+*   **内容示例**: `EUR/USD`, `GBP/USD`, `USD/JPY`
+
+#### ⚙️ `gateway:config:periods` (Set)
+存储网关当前处理的所有 K 线周期。
+*   **Key**: `gateway:config:periods`
+*   **类型**: Redis Set
+*   **命令示例**: `SMEMBERS gateway:config:periods`
+*   **内容示例**: `FIVE_MINS`, `FIFTEEN_MINS`, `DAILY`
+
+#### ⚙️ `gateway:config:instrument_info` (Hash)
+存储每个交易品种的详细属性（Pip值、最小报价单位等）。
+*   **Key**: `gateway:config:instrument_info`
+*   **类型**: Redis Hash
+*   **Field**: 交易品种名称 (e.g., `EUR/USD`)
+*   **Value**: MessagePack 编码的 `InstrumentInfoDTO` 对象
+*   **命令示例**: `HGET gateway:config:instrument_info "EUR/USD"`
+*   **字段说明**:
+    | 字段名 | 类型 | 是否必需 | 描述 |
+    | :--- | :--- | :--- | :--- |
+    | `name` | String | 是 | 交易品种名称 (带斜杠) |
+    | `currency` | String | 是 | 基础/报价货币对 |
+    | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
+    | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
+    | `description`| String | 是 | 交易品种描述 (当前内容与 name 相同) |
+

@@ -40,7 +40,8 @@ public class RedisConfig {
             @NonNull OrderCloseListener orderCloseListener,
             @NonNull OrderSubmitListener orderSubmitListener,
             @NonNull OrderModifyListener orderModifyListener,
-            @NonNull OrderCancelListener orderCancelListener
+            @NonNull OrderCancelListener orderCancelListener,
+            @NonNull PositionsRequestListener positionsRequestListener
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -50,6 +51,7 @@ public class RedisConfig {
         container.addMessageListener(orderSubmitListener, new ChannelTopic("order:submit"));
         container.addMessageListener(orderModifyListener, new ChannelTopic("order:modify"));
         container.addMessageListener(orderCancelListener, new ChannelTopic("order:cancel"));
+        container.addMessageListener(positionsRequestListener, new ChannelTopic("system:request:positions"));
         return container;
     }
 

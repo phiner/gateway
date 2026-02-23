@@ -92,6 +92,11 @@ public class TradingStrategy implements IStrategy {
               .collect(Collectors.joining(", "));
           log.info("Successfully subscribed to instruments: {}", subscribed);
           redisService.publishInfo("Successfully subscribed to instruments: " + subscribed);
+          
+          // Save detailed instrument info to Redis static keys
+          for (Instrument instrument : this.subscribedInstruments) {
+              saveInstrumentDetailsToRedis(instrument);
+          }
         } else {
           log.warn("No valid instruments to subscribe to!");
         }
@@ -171,7 +176,7 @@ public class TradingStrategy implements IStrategy {
             } catch (Exception e) {
               log.error("Async History Preloader encountered a general error", e);
             }
-        });
+        }, this.executor);
       }
 
       redisService.publishGatewayStatus(
@@ -237,15 +242,38 @@ public class TradingStrategy implements IStrategy {
 
   @Override
   public void onStop() {
+    log.info("TradingStrategy stopping. Shutting down executors...");
     if (executor != null) {
         executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
     if (eventProcessor != null) {
         eventProcessor.shutdown();
+        try {
+            if (!eventProcessor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                eventProcessor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            eventProcessor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
-    redisService.publishGatewayStatus(
-        new GatewayStatusDTO("DISCONNECTED", "Trading strategy stopped."));
-    redisService.publishInfo("Trading strategy stopped.");
+    
+    try {
+        redisService.publishGatewayStatus(
+            new GatewayStatusDTO("DISCONNECTED", "Trading strategy stopped."));
+        redisService.publishInfo("Trading strategy stopped.");
+    } catch (Exception e) {
+        log.warn("Could not publish final disconnect status to Redis: {}", e.getMessage());
+    }
+    log.info("TradingStrategy stopped.");
   }
 
   public IContext getContext() {
@@ -365,14 +393,75 @@ public class TradingStrategy implements IStrategy {
                     name,
                     currency,
                     instrument.getPipValue(),
-                    instrument.getPipValue() / 10,
+                    Math.pow(10, -instrument.getTickScale()),
                     name
             );
 
+            // Both update the static cache and publish the response
+            redisService.saveInstrumentInfo(infoDTO);
             redisService.publishInstrumentInfo(infoDTO, requestId);
 
         } catch (Exception e) {
             redisService.publishError("Error fetching instrument info for " + instrumentName + ": " + e.getMessage());
+        }
+    }
+
+    public void handlePositionsRequest(@NonNull phiner.de5.net.gateway.request.PositionsRequest request) {
+        String requestId = request.getRequestId();
+        if (requestId == null) {
+            log.error("PositionsRequest has no requestId");
+            return;
+        }
+
+        try {
+            if (context == null || context.getEngine() == null) {
+                redisService.publishError("Engine not available to fetch positions for request: " + requestId);
+                return;
+            }
+
+            List<IOrder> orders = context.getEngine().getOrders();
+            List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
+            
+            for (IOrder order : orders) {
+                if (order.getState() == IOrder.State.FILLED) {
+                    positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
+                }
+            }
+
+            phiner.de5.net.gateway.dto.PositionListResponseDTO responseDTO = 
+                new phiner.de5.net.gateway.dto.PositionListResponseDTO(positions);
+            
+            redisService.publishPositions(responseDTO, requestId);
+            log.info("Published {} positions for requestId: {}", positions.size(), requestId);
+
+        } catch (Exception e) {
+            log.error("Error handling positions request", e);
+            redisService.publishError("Error fetching positions: " + e.getMessage());
+        }
+    }
+
+    private void saveInstrumentDetailsToRedis(@NonNull Instrument instrument) {
+        try {
+            String name = instrument.toString();
+            ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
+            ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
+
+            if (name == null || primaryCurrency == null || secondaryCurrency == null) {
+                log.error("Failed to fetch full instrument details for {}", instrument);
+                return;
+            }
+
+            String currency = primaryCurrency.getCurrencyCode() + "/" + secondaryCurrency.getCurrencyCode();
+            InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
+                    name,
+                    currency,
+                    instrument.getPipValue(),
+                    Math.pow(10, -instrument.getTickScale()),
+                    name
+            );
+            redisService.saveInstrumentInfo(infoDTO);
+        } catch (Exception e) {
+            log.error("Error saving instrument info for {} to Redis", instrument, e);
         }
     }
 
