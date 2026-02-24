@@ -207,9 +207,10 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | :--- | :--- | :--- | :--- |
         | `name` | String | 是 | 交易品种名称 (带斜杠) |
         | `currency` | String | 是 | 基础/报价货币对 |
-        | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
-        | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
+        | `pip` | Double | 是 | **[MANDATORY]** 一个点的价值 (e.g., 0.0001) |
+        | `point`| Double | 是 | **[MANDATORY]** 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
         | `description`| String | 是 | 交易品种描述 |
+        | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (手数) |
 
 ### 获取所有当前持仓
 
@@ -370,7 +371,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | :--- | :--- | :--- | :--- |
     | `name` | String | 是 | 交易品种名称 (带斜杠) |
     | `currency` | String | 是 | 基础/报价货币对 |
-    | `pip` | Double | 是 | 一个点的价值 (e.g., 0.0001) |
-    | `point`| Double | 是 | 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
+    | `pip` | Double | 是 | **[MANDATORY]** 一个点的价值 (e.g., 0.0001) |
+    | `point`| Double | 是 | **[MANDATORY]** 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
     | `description`| String | 是 | 交易品种描述 (当前内容与 name 相同) |
+    | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (手数) |
 

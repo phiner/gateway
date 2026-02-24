@@ -405,7 +405,8 @@ public class TradingStrategy implements IStrategy {
                     currency,
                     instrument.getPipValue(),
                     Math.pow(10, -instrument.getTickScale()),
-                    name
+                    name,
+                    instrument.getMinTradeAmount()
             );
 
             redisService.saveInstrumentInfo(infoDTO);
@@ -479,7 +480,8 @@ public class TradingStrategy implements IStrategy {
                     currency,
                     instrument.getPipValue(),
                     Math.pow(10, -instrument.getTickScale()),
-                    name
+                    name,
+                    instrument.getMinTradeAmount()
             );
             redisService.saveInstrumentInfo(infoDTO);
         } catch (Exception e) {

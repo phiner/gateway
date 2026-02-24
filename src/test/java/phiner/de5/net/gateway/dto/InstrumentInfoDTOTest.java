@@ -13,13 +13,15 @@ public class InstrumentInfoDTOTest {
         double pip = 0.0001;
         double point = 0.00001;
         String description = "Euro vs US Dollar";
+        double minTradeAmount = 0.01;
 
-        InstrumentInfoDTO instrumentInfoDTO = new InstrumentInfoDTO(name, currency, pip, point, description);
+        InstrumentInfoDTO instrumentInfoDTO = new InstrumentInfoDTO(name, currency, pip, point, description, minTradeAmount);
 
         assertEquals(name, instrumentInfoDTO.getName());
         assertEquals(currency, instrumentInfoDTO.getCurrency());
         assertEquals(pip, instrumentInfoDTO.getPip());
         assertEquals(point, instrumentInfoDTO.getPoint());
         assertEquals(description, instrumentInfoDTO.getDescription());
+        assertEquals(minTradeAmount, instrumentInfoDTO.getMinTradeAmount());
     }
 }
