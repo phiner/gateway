@@ -405,10 +405,12 @@ public class TradingStrategy implements IStrategy {
                     currency,
                     instrument.getPipValue(),
                     Math.pow(10, -instrument.getTickScale()),
-                    name
+                    name,
+                    instrument.getMinTradeAmount()
             );
 
             redisService.saveInstrumentInfo(infoDTO);
+            redisService.saveTradeLots(name, instrument.getMinTradeAmount());
             redisService.publishInstrumentInfo(infoDTO, requestId);
             return null;
         }, "Instrument Info Request [" + request.getInstrument() + "]");
@@ -479,9 +481,11 @@ public class TradingStrategy implements IStrategy {
                     currency,
                     instrument.getPipValue(),
                     Math.pow(10, -instrument.getTickScale()),
-                    name
+                    name,
+                    instrument.getMinTradeAmount()
             );
             redisService.saveInstrumentInfo(infoDTO);
+            redisService.saveTradeLots(name, instrument.getMinTradeAmount());
         } catch (Exception e) {
             log.error("Error saving instrument info for {} to Redis", instrument, e);
         }

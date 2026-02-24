@@ -247,4 +247,14 @@ public class RedisService {
             log.error("Failed to save instrument info for {} to Redis: {}", info.getName(), e.getMessage(), e);
         }
     }
+
+    public void saveTradeLots(@NonNull String instrument, double lots) {
+        String key = "gateway:config:trade_lots";
+        try {
+            redisTemplateString.opsForHash().put(key, instrument, String.valueOf(lots));
+            log.info("Saved trade lots for {} to Redis hash: {}: {}", instrument, key, lots);
+        } catch (Exception e) {
+            log.error("Failed to save trade lots for {} to Redis: {}", instrument, e.getMessage(), e);
+        }
+    }
 }

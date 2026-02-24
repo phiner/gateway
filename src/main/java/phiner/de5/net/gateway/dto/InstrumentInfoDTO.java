@@ -13,4 +13,5 @@ public class InstrumentInfoDTO {
     private double pip;
     private double point;
     private String description;
+    private double minTradeAmount;
 }
