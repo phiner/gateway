@@ -359,6 +359,13 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **命令示例**: `SMEMBERS gateway:config:periods`
 *   **内容示例**: `FIVE_MINS`, `FIFTEEN_MINS`, `DAILY`
 
+* ### 引擎全局配置
+
+- **名称**: `gateway:config:trade_multiplier`
+- **类型**: String (Key-Value)
+- **描述**: 存储全局开仓手数的放大倍数。引擎在每次计算最终开仓量时 (minTradeAmount * multiplier) 会实时读取此值，默认值为 `1.0`。此值由引擎根据配置或环境变量在启动时写入，也可支持网关动态修改。
+*   **说明**: 该值基于品种的 `minTradeAmount` 乘以全局倍数 `TRADE_LOTS_MULTIPLIER` 计算得出。
+
 #### ⚙️ `gateway:config:instrument_info` (Hash)
 存储每个交易品种的详细属性（Pip值、最小报价单位等）。
 *   **Key**: `gateway:config:instrument_info`
