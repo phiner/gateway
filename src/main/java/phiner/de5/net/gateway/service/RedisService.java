@@ -58,7 +58,6 @@ public class RedisService {
     }
 
     try {
-      log.info("Writing bar to Redis list: {} (size: {} bytes)", redisKey, barData.length);
       redisTemplateBytes.opsForList().leftPush(Objects.requireNonNull(redisKey), barData);
       redisTemplateBytes.opsForList().trim(Objects.requireNonNull(redisKey), 0, klineStorageLimit - 1);
     } catch (Exception e) {
