@@ -84,7 +84,6 @@ public class TradingStrategyTest {
       tradingStrategy.handleInstrumentInfoRequest(request);
 
       // Then
-      verify(redisService).saveTradeLots(eq(instrumentName), eq(0.01));
       verify(redisService).publishInstrumentInfo(any(InstrumentInfoDTO.class), eq(requestId));
       verify(redisService, never()).publishError(anyString());
     }
