@@ -72,7 +72,7 @@ public class InstrumentInfoRequestListenerTest {
 
         // Then
         verifyNoInteractions(tradingStrategy);
-        verify(redisService).publishError("Failed to process instrument info request: " + testException.getMessage());
+        verify(redisService).publishError("无法处理产品信息请求: " + testException.getMessage());
     }
 
     @Test

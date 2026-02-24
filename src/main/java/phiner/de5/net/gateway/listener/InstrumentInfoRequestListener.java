@@ -29,7 +29,7 @@ public class InstrumentInfoRequestListener implements MessageListener {
                 tradingStrategy.handleInstrumentInfoRequest(request);
             }
         } catch (Exception e) {
-            redisService.publishError("Failed to process instrument info request: " + e.getMessage());
+            redisService.publishError("无法处理产品信息请求: " + e.getMessage());
             e.printStackTrace();
         }
     }

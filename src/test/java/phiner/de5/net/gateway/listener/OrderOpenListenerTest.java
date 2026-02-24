@@ -76,7 +76,7 @@ public class OrderOpenListenerTest {
 
         // Then
         verifyNoInteractions(tradingStrategy);
-        verify(redisService).publishError("Failed to process open market order request: " + testException.getMessage());
+        verify(redisService).publishError("无法处理开仓市场订单请求: " + testException.getMessage());
     }
 
     @Test
