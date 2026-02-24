@@ -403,8 +403,8 @@ public class TradingStrategy implements IStrategy {
             InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
                     name,
                     currency,
-                    instrument.getPipValue(),
-                    Math.pow(10, -instrument.getTickScale()),
+                    java.math.BigDecimal.valueOf(instrument.getPipValue()).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
+                    java.math.BigDecimal.valueOf(Math.pow(10, -instrument.getTickScale())).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
                     name,
                     instrument.getMinTradeAmount()
             );
@@ -478,8 +478,8 @@ public class TradingStrategy implements IStrategy {
             InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
                     name,
                     currency,
-                    instrument.getPipValue(),
-                    Math.pow(10, -instrument.getTickScale()),
+                    java.math.BigDecimal.valueOf(instrument.getPipValue()).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
+                    java.math.BigDecimal.valueOf(Math.pow(10, -instrument.getTickScale())).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
                     name,
                     instrument.getMinTradeAmount()
             );
