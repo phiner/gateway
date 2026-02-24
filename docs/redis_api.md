@@ -359,14 +359,6 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
 *   **命令示例**: `SMEMBERS gateway:config:periods`
 *   **内容示例**: `FIVE_MINS`, `FIFTEEN_MINS`, `DAILY`
 
-#### ⚙️ `gateway:config:trade_lots` (Hash)
-存储各品种当前计算后的最终开仓手数。
-*   **Key**: `gateway:config:trade_lots`
-*   **类型**: Redis Hash
-*   **Field**: 交易品种名称 (e.g., `EUR/USD`)
-*   **Value**: 字符串格式的十进制数 (e.g., `0.02`)
-*   **说明**: 该值基于品种的 `minTradeAmount` 乘以全局倍数 `TRADE_LOTS_MULTIPLIER` 计算得出。
-
 #### ⚙️ `gateway:config:instrument_info` (Hash)
 存储每个交易品种的详细属性（Pip值、最小报价单位等）。
 *   **Key**: `gateway:config:instrument_info`

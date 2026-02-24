@@ -261,17 +261,6 @@ public class RedisServiceTest {
         verify(redisTemplateString).delete(key);
         verify(setOperationsString).add(key, periods.toArray(new String[0]));
     }
-    @Test
-    public void testSaveTradeLots() {
-        String instrument = "EUR/USD";
-        double lots = 0.05;
-        String key = "gateway:config:trade_lots";
-        when(redisTemplateString.opsForHash()).thenReturn(mock(org.springframework.data.redis.core.HashOperations.class));
-
-        redisService.saveTradeLots(instrument, lots);
-
-        verify(redisTemplateString.opsForHash()).put(key, instrument, String.valueOf(lots));
-    }
     //</editor-fold>
 
 }
