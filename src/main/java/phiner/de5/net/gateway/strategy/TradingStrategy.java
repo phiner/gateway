@@ -289,10 +289,10 @@ public class TradingStrategy implements IStrategy {
         Instrument instrument = Instrument.fromString(request.getInstrument());
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
         double amount = request.getAmount();
-        String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
+        String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
         context.getEngine().submitOrder(
-                label,
+                finalLabel,
                 instrument,
                 command,
                 amount,
@@ -321,13 +321,13 @@ public class TradingStrategy implements IStrategy {
         runTask(() -> {
             Instrument instrument = Instrument.fromString(request.getInstrument());
             IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
-            String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
+            String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
             double stopLossPrice = request.getStopLossPrice();
             double takeProfitPrice = request.getTakeProfitPrice();
 
             context.getEngine().submitOrder(
-                    label,
+                    finalLabel,
                     instrument,
                     command,
                     request.getAmount(),
@@ -489,7 +489,28 @@ public class TradingStrategy implements IStrategy {
     }
 
   private String getNewLabel() {
-    return "Order-" + System.currentTimeMillis();
+    return "Order_" + System.currentTimeMillis();
+  }
+
+  /**
+   * 清洗订单标签以符合 JForex 规范（仅允许字母、数字和下划线）。
+   * 如果标签以数字开头，则增加前缀以符合规范。
+   */
+  private String sanitizeLabel(String label) {
+      if (label == null || label.isEmpty()) {
+          return getNewLabel();
+      }
+      // 将非法字符替换为下划线
+      String sanitized = label.replaceAll("[^a-zA-Z0-9_]", "_");
+      
+      // JForex 标签不能以数字开头（虽然文档未明确写，但经验表明部分版本有此限制，且用户报错也涉及到此）
+      // 实际上报错信息显示 PivotSniper-5Min 其中包含横杠。
+      // 如果首字母是数字，增加前缀
+      if (Character.isDigit(sanitized.charAt(0))) {
+          sanitized = "L_" + sanitized;
+      }
+      
+      return sanitized;
   }
 
   public Set<Instrument> getSubscribedInstruments() {
