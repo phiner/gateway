@@ -208,7 +208,6 @@ public class TradingStrategy implements IStrategy {
       
       if (instrumentName != null && periodName != null && eventProcessor != null && !eventProcessor.isShutdown()) {
         eventProcessor.submit(() -> {
-            log.info("Processing live bar: {} {} Time: {}", instrumentName, periodName, bidBar.getTime());
             BarDTO barDTO = new BarDTO(instrumentName, periodName, bidBar);
             kLineManager.onBar(instrumentName, barDTO);
         });
