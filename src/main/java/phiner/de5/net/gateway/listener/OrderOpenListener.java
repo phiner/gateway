@@ -30,7 +30,7 @@ public class OrderOpenListener implements MessageListener {
                 tradingStrategy.executeMarketOrder(request);
             }
         } catch (Exception e) {
-            redisService.publishError("Failed to process open market order request: " + e.getMessage());
+            redisService.publishError("无法处理开仓市场订单请求: " + e.getMessage());
             e.printStackTrace();
         }
     }

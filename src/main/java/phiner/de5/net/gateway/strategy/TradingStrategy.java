@@ -27,8 +27,8 @@ import java.util.List;
 public class TradingStrategy implements IStrategy {
 
   private IContext context;
-  private ExecutorService executor; // original executor, perhaps for orders?
-  private ExecutorService eventProcessor; // New executor for JForex events
+  private ExecutorService executor; // 原始执行器，可能用于订单相关操作
+  private ExecutorService eventProcessor; // 用于异步处理 JForex 事件的新执行器
 
   private final Set<Instrument> subscribedInstruments = new HashSet<>();
   private final Set<Period> configuredPeriods = new HashSet<>();
@@ -61,22 +61,22 @@ public class TradingStrategy implements IStrategy {
     if (this.executor == null) {
         this.executor = Executors.newSingleThreadExecutor();
     }
-    // Initialize the event processor for asynchronous handling of ticks/bars/messages
+    // 初始化事件处理器，用于异步处理报价、K线和消息
     this.eventProcessor = Executors.newSingleThreadExecutor();
 
     if (context != null) {
-      // Subscribe to instruments from configuration
+      // 从配置中订阅交易产品
       if (forexProperties.getInstruments() != null && !forexProperties.getInstruments().isEmpty()) {
         Set<Instrument> instrumentsToSubscribe = forexProperties.getInstruments().stream()
             .map(String::trim)
             .map(name -> {
               try {
                 Instrument inst = Instrument.fromString(name);
-                log.info("Converted string '{}' to instrument: {}", name, inst);
+                log.info("已将字符串 '{}' 转换为产品: {}", name, inst);
                 return inst;
               } catch (Exception e) {
-                log.error("Failed to convert '{}' to instrument", name, e);
-                redisService.publishError("Invalid instrument name in configuration: " + name);
+                log.error("无法将 '{}' 转换为产品", name, e);
+                redisService.publishError("配置中的交易产品名称无效: " + name);
                 return null;
               }
             })
@@ -85,24 +85,24 @@ public class TradingStrategy implements IStrategy {
 
         if (!instrumentsToSubscribe.isEmpty()) {
           this.subscribedInstruments.addAll(instrumentsToSubscribe);
-          log.info("Subscribing to instruments: {}", this.subscribedInstruments);
+          log.info("正在订阅产品: {}", this.subscribedInstruments);
           context.setSubscribedInstruments(this.subscribedInstruments, true);
           String subscribed = instrumentsToSubscribe.stream()
               .map(Instrument::name)
               .collect(Collectors.joining(", "));
-          log.info("Successfully subscribed to instruments: {}", subscribed);
-          redisService.publishInfo("Successfully subscribed to instruments: " + subscribed);
+          log.info("成功订阅产品: {}", subscribed);
+          redisService.publishInfo("成功订阅产品: " + subscribed);
           
-          // Save detailed instrument info to Redis static keys
+          // 将详细的产品信息保存到 Redis 静态键
           for (Instrument instrument : this.subscribedInstruments) {
               saveInstrumentDetailsToRedis(instrument);
           }
         } else {
-          log.warn("No valid instruments to subscribe to!");
+          log.warn("没有有效的产品可供订阅！");
         }
       }
 
-      // Parse and store configured periods
+      // 解析并存储配置的周期
       if (forexProperties.getPeriods() != null && !forexProperties.getPeriods().isEmpty()) {
         Set<Period> periodsToProcess = forexProperties.getPeriods().stream()
             .map(String::trim)
@@ -110,7 +110,7 @@ public class TradingStrategy implements IStrategy {
                 try {
                     return Period.valueOf(name);
                 } catch (IllegalArgumentException e) {
-                    redisService.publishError("Invalid period name in configuration: " + name);
+                    redisService.publishError("配置中的周期名称无效: " + name);
                     return null;
                 }
             })
@@ -118,18 +118,18 @@ public class TradingStrategy implements IStrategy {
             .collect(Collectors.toSet());
         this.configuredPeriods.addAll(periodsToProcess);
         String periods = periodsToProcess.stream().map(Period::toString).collect(Collectors.joining(", "));
-        log.info("Will process bars for periods: {}", periods);
-        redisService.publishInfo("Will process bars for periods: " + periods);
+        log.info("将处理以下周期的 K线: {}", periods);
+        redisService.publishInfo("将处理以下周期的 K线: " + periods);
 
-        // Preload historical data ASYNCHRONOUSLY to avoid blocking JForex start thread
+        // 异步预加载历史数据，避免阻塞 JForex 启动线程
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             try {
-              log.info("Async History Preloader: Waiting for instrument subscriptions to be confirmed by server...");
+              log.info("异步历史预加载器: 正在等待服务器确认产品订阅...");
               long startWait = System.currentTimeMillis();
-              // Poll until all requested instruments are reported as subscribed by the server
+              // 轮询直到服务器报告所有请求的产品均已订阅
               while (!context.getSubscribedInstruments().containsAll(this.subscribedInstruments)) {
                   if (System.currentTimeMillis() - startWait > 30000) {
-                      log.warn("Async History Preloader: Timeout (30s) waiting for all instruments to subscribe. Proceeding with available ones.");
+                      log.warn("异步历史预加载器: 等待订阅确认超时 (30s)。将继续处理已完成订阅的产品。");
                       break;
                   }
                   try {
@@ -139,50 +139,50 @@ public class TradingStrategy implements IStrategy {
                       return;
                   }
               }
-              log.info("Async History Preloader: Subscriptions confirmed in {}ms. Starting history fetch.", System.currentTimeMillis() - startWait);
+              log.info("异步历史预加载器: 订阅已在 {}ms 内确认。开始获取历史数据。", System.currentTimeMillis() - startWait);
               IHistory history = context.getHistory();
-              log.info("Async History Preloader: klineStorageLimit: {}, contextTime: {}", klineStorageLimit, context.getTime());
+              log.info("异步历史预加载器: klineStorageLimit: {}, contextTime: {}", klineStorageLimit, context.getTime());
               for (Instrument instrument : this.subscribedInstruments) {
                 String instrumentName = instrument.toString();
                 for (Period period : this.configuredPeriods) {
                   try {
-                    log.info("Async History Preloader: Requesting historical data for {} and period {}", instrumentName, period);
-                    // Calculate range: end at the start of the last COMPLETED bar
+                    log.info("异步历史预加载器: 正在请求 {} 的 {} 周期历史数据", instrumentName, period);
+                    // 计算范围：从最后一个已连续的 K线开始执行
                     long to = history.getPreviousBarStart(period, context.getTime());
                     long from = to - (klineStorageLimit * period.getInterval());
                     
-                    // Use the from/to signature which is sometimes more reliable
+                    // 获取历史 K线数据
                     List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, from, to);
                     
                     if (bars != null && !bars.isEmpty()) {
-                        log.info("Async History Preloader: Received {} historical bars for {} and period {}", bars.size(), instrumentName, period);
+                        log.info("异步历史预加载器: 收到 {} 的 {} 周期共 {} 条历史记录", instrumentName, period, bars.size());
                         if (instrumentName != null) {
                             for (IBar bar : bars) {
                                 BarDTO barDTO = new BarDTO(instrumentName, period.toString(), bar);
-                                // Process the bar using the sequential event processor
+                                // 使用顺序事件处理器处理 K线
                                 eventProcessor.submit(() -> kLineManager.onBar(instrumentName, barDTO));
                             }
                         }
                     } else if (bars != null) {
-                        log.warn("Async History Preloader: Received 0 bars for {} and period {} in range {} to {}", instrumentName, period, from, to);
+                        log.warn("异步历史预加载器: 在 {} 到 {} 范围内未收到 {} 的 {} 周期数据", from, to, instrumentName, period);
                     } else {
-                        log.warn("Async History Preloader: Received null bars for {} and period {}", instrumentName, period);
+                        log.warn("异步历史预加载器: 收到 {} 的 {} 周期数据为 null", instrumentName, period);
                     }
                   } catch (Exception e) {
-                    log.error("Async History Preloader: Failed to preload historical data for {} and period {}", instrumentName, period, e);
+                    log.error("异步历史预加载器: 无法预加载 {} 的 {} 周期历史数据", instrumentName, period, e);
                   }
                 }
               }
             } catch (Exception e) {
-              log.error("Async History Preloader encountered a general error", e);
+              log.error("异步历史预加载器遇到通用错误", e);
             }
         }, this.executor);
       }
 
       redisService.publishGatewayStatus(
           new GatewayStatusDTO(
-              "CONNECTED", "Trading strategy started and connected to Dukascopy."));
-      redisService.publishInfo("Trading strategy started.");
+              "CONNECTED", "交易策略已启动并成功连接至 Dukascopy。"));
+      redisService.publishInfo("交易策略已启动。");
     }
   }
 
@@ -289,17 +289,17 @@ public class TradingStrategy implements IStrategy {
         Instrument instrument = Instrument.fromString(request.getInstrument());
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
         double amount = request.getAmount();
-        String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
+        String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
         context.getEngine().submitOrder(
-                label,
+                finalLabel,
                 instrument,
                 command,
                 amount,
-                0, // price
-                request.getSlippage() != null ? request.getSlippage() : 0, // slippage
-                request.getStopLossPrice() != null ? request.getStopLossPrice() : 0, // stopLossPrice
-                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0 // takeProfitPrice
+                0, // 价格
+                request.getSlippage() != null ? request.getSlippage() : 0, // 滑点
+                request.getStopLossPrice() != null ? request.getStopLossPrice() : 0, // 止损价
+                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0 // 止盈价
         );
             return null;
         }, "Open Market Order [" + request.getInstrument() + "]");
@@ -321,18 +321,18 @@ public class TradingStrategy implements IStrategy {
         runTask(() -> {
             Instrument instrument = Instrument.fromString(request.getInstrument());
             IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
-            String label = (request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel();
+            String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
             double stopLossPrice = request.getStopLossPrice();
             double takeProfitPrice = request.getTakeProfitPrice();
 
             context.getEngine().submitOrder(
-                    label,
+                    finalLabel,
                     instrument,
                     command,
                     request.getAmount(),
                     request.getPrice(),
-                    0, // slippage for pending orders is not applicable in the same way
+                    0, // 挂单不适用滑点
                     stopLossPrice,
                     takeProfitPrice
             );
@@ -489,7 +489,28 @@ public class TradingStrategy implements IStrategy {
     }
 
   private String getNewLabel() {
-    return "Order-" + System.currentTimeMillis();
+    return "Order_" + System.currentTimeMillis();
+  }
+
+  /**
+   * 清洗订单标签以符合 JForex 规范（仅允许字母、数字和下划线）。
+   * 如果标签以数字开头，则增加前缀以符合规范。
+   */
+  private String sanitizeLabel(String label) {
+      if (label == null || label.isEmpty()) {
+          return getNewLabel();
+      }
+      // 将非法字符替换为下划线
+      String sanitized = label.replaceAll("[^a-zA-Z0-9_]", "_");
+      
+      // JForex 标签不能以数字开头（虽然文档未明确写，但经验表明部分版本有此限制，且用户报错也涉及到此）
+      // 实际上报错信息显示 PivotSniper-5Min 其中包含横杠。
+      // 如果首字母是数字，增加前缀
+      if (Character.isDigit(sanitized.charAt(0))) {
+          sanitized = "L_" + sanitized;
+      }
+      
+      return sanitized;
   }
 
   public Set<Instrument> getSubscribedInstruments() {

@@ -165,7 +165,8 @@ public class TradingStrategyTest {
       tradingStrategy.executeMarketOrder(request);
 
       // Then
-      verify(engine).submitOrder(eq("label-1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236));
+      // Then
+      verify(engine).submitOrder(eq("label_1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236));
     }
   }
 
@@ -186,7 +187,7 @@ public class TradingStrategyTest {
 
       // Then
       verify(engine).submitOrder(labelCaptor.capture(), eq(mockInstrument), eq(IEngine.OrderCommand.SELL), eq(0.2), eq(0.0), eq(10.0), eq(95.12), eq(96.55));
-      assert(labelCaptor.getValue().startsWith("Order-"));
+      assert(labelCaptor.getValue().startsWith("Order_"));
     }
   }
 
@@ -241,7 +242,7 @@ public class TradingStrategyTest {
         tradingStrategy.submitOrder(request);
 
         // Then
-        verify(engine).submitOrder(eq("label-2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600));
+        verify(engine).submitOrder(eq("label_2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600));
       }
   }
 
@@ -296,5 +297,65 @@ public class TradingStrategyTest {
 
       // Then
       verify(mockOrder, never()).close();
+  }
+
+  @Test
+  public void testExecuteMarketOrder_withInvalidLabel_sanitized() throws JFException {
+      // Given
+      String instrumentName = "EUR/USD";
+      Instrument mockInstrument = mock(Instrument.class);
+      // 输入包含横杠的非法标签
+      OpenMarketOrderRequest request = new OpenMarketOrderRequest(
+          instrumentName, 0.1, MarketOrderType.BUY, "PivotSniper-5Min-123", 5.0, null, null);
+
+      try (MockedStatic<Instrument> mockedStatic = mockStatic(Instrument.class)) {
+          mockedStatic.when(() -> Instrument.fromString(instrumentName)).thenReturn(mockInstrument);
+
+          // When
+          tradingStrategy.executeMarketOrder(request);
+
+          // Then - 预期横杠被替换为下划线
+          verify(engine).submitOrder(eq("PivotSniper_5Min_123"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+      }
+  }
+
+  @Test
+  public void testExecuteMarketOrder_withLeadingDigitLabel_sanitized() throws JFException {
+      // Given
+      String instrumentName = "EUR/USD";
+      Instrument mockInstrument = mock(Instrument.class);
+      // 输入以数字开头的标签
+      OpenMarketOrderRequest request = new OpenMarketOrderRequest(
+          instrumentName, 0.1, MarketOrderType.BUY, "123Strategy", 5.0, null, null);
+
+      try (MockedStatic<Instrument> mockedStatic = mockStatic(Instrument.class)) {
+          mockedStatic.when(() -> Instrument.fromString(instrumentName)).thenReturn(mockInstrument);
+
+          // When
+          tradingStrategy.executeMarketOrder(request);
+
+          // Then - 预期数字开头被补齐 L_ 前缀
+          verify(engine).submitOrder(eq("L_123Strategy"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+      }
+  }
+
+  @Test
+  public void testExecuteMarketOrder_withSpecialChars_sanitized() throws JFException {
+      // Given
+      String instrumentName = "EUR/USD";
+      Instrument mockInstrument = mock(Instrument.class);
+      // 输入包含特殊字符的标签
+      OpenMarketOrderRequest request = new OpenMarketOrderRequest(
+          instrumentName, 0.1, MarketOrderType.BUY, "Order@#%^&*()", 5.0, null, null);
+
+      try (MockedStatic<Instrument> mockedStatic = mockStatic(Instrument.class)) {
+          mockedStatic.when(() -> Instrument.fromString(instrumentName)).thenReturn(mockInstrument);
+
+          // When
+          tradingStrategy.executeMarketOrder(request);
+
+          // Then - 预期特殊字符被替换为下划线
+          verify(engine).submitOrder(eq("Order________"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+      }
   }
 }

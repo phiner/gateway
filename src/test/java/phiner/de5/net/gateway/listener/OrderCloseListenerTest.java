@@ -75,7 +75,7 @@ public class OrderCloseListenerTest {
 
         // Then
         verifyNoInteractions(tradingStrategy);
-        verify(redisService).publishError("Failed to process close market order request: " + testException.getMessage());
+        verify(redisService).publishError("无法处理平仓市场订单请求: " + testException.getMessage());
     }
 
     @Test

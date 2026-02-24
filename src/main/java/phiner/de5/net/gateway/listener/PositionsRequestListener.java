@@ -29,7 +29,7 @@ public class PositionsRequestListener implements MessageListener {
                 tradingStrategy.handlePositionsRequest(request);
             }
         } catch (Exception e) {
-            redisService.publishError("Failed to process positions request: " + e.getMessage());
+            redisService.publishError("无法处理持仓请求: " + e.getMessage());
             e.printStackTrace();
         }
     }
