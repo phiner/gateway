@@ -74,6 +74,8 @@ public class TradingStrategyTest {
     when(primaryCurrency.getCurrencyCode()).thenReturn("EUR");
     when(secondaryCurrency.getCurrencyCode()).thenReturn("USD");
     when(mockInstrument.getPipValue()).thenReturn(0.0001);
+    when(mockInstrument.getMinTradeAmount()).thenReturn(0.01);
+    when(mockInstrument.toString()).thenReturn(instrumentName);
 
     try (MockedStatic<Instrument> mockedStatic = mockStatic(Instrument.class)) {
       mockedStatic.when(() -> Instrument.fromString(instrumentName)).thenReturn(mockInstrument);
@@ -82,6 +84,7 @@ public class TradingStrategyTest {
       tradingStrategy.handleInstrumentInfoRequest(request);
 
       // Then
+      verify(redisService).saveTradeLots(eq(instrumentName), eq(0.01));
       verify(redisService).publishInstrumentInfo(any(InstrumentInfoDTO.class), eq(requestId));
       verify(redisService, never()).publishError(anyString());
     }
