@@ -36,7 +36,9 @@ public class JForexClientService {
             redisService.testConnection();
             log.info("Redis connection established.");
 
-            this.client = ClientFactory.getDefaultInstance();
+            if (this.client == null) {
+                this.client = ClientFactory.getDefaultInstance();
+            }
             setupListener();
             connect();
         } catch (Exception e) {
