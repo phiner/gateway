@@ -222,7 +222,7 @@ public class TradingStrategy implements IStrategy {
           redisService.publishOrderEvent(message);
           try {
             IOrder order = message.getOrder();
-            if (order != null && order.getState() == IOrder.State.FILLED) {
+            if (order != null && message.getType() == IMessage.Type.ORDER_FILL_OK) {
               log.info("Order filled: {}", order.getLabel());
             }
           } catch (Exception e) {
