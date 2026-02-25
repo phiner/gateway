@@ -53,3 +53,12 @@ jobs:
           ./mvnw compile jib:build \
             -Djib.to.auth.username=${{ github.actor }} \
             -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }}
+            
+# --- 新增步骤：自动清理旧版本 ---
+      - name: Delete old image versions
+        uses: actions/delete-package-versions@v5
+        with:
+          # 自动获取当前仓库名作为包名
+          package-name: ${{ github.event.repository.name }}
+          package-type: 'container'
+          min-versions-to-keep: 1

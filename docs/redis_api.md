@@ -210,7 +210,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
         | `pip` | Double | 是 | **[MANDATORY]** 一个点的价值 (e.g., 0.0001) |
         | `point`| Double | 是 | **[MANDATORY]** 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
         | `description`| String | 是 | 交易品种描述 |
-        | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (手数) |
+        | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (由网关原样透传 Dukascopy API 例 `getMinTradeAmount()` 返回的值，如外汇为 `1000`，无需任何人工转换，引擎会自动适配) |
 
 ### 获取所有当前持仓
 
@@ -266,7 +266,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | :--- | :--- | :--- | :--- |
     | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `orderType` | String | 是 | "BUY" 或 "SELL" |
-    | `amount` | Double | 是 | 交易量 (手数) |
+    | `amount` | Double | 是 | 交易量 (由网关原样透传 JForex 原生单位，如外汇传 `1000`，引擎侧负责转换适配) |
     | `label` | String | 否 | 自定义订单标签或备注 |
     | `slippage` | Double | 否 | 允许的最大滑点 (点) |
     | `stopLossPrice` | Double | 否 | 止损价格 |
@@ -304,7 +304,7 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | :--- | :--- | :--- | :--- |
     | `instrument` | String | 是 | 交易品种名称 (带斜杠) |
     | `orderCommand` | String | 是 | 挂单指令, e.g., "BUY_LIMIT", "SELL_STOP" |
-    | `amount` | Double | 是 | 交易量 (手数) |
+    | `amount` | Double | 是 | 交易量 (由网关原样透传 JForex 原生单位，同上) |
     | `price` | Double | 是 | 挂单价格 |
     | `label` | String | 否 | 自定义订单标签或备注 |
     | `stopLossPrice` | Double | 否 | 止损价格 |
@@ -381,5 +381,5 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | `pip` | Double | 是 | **[MANDATORY]** 一个点的价值 (e.g., 0.0001) |
     | `point`| Double | 是 | **[MANDATORY]** 以微点为单位的点值 (由 SDK 的 TickScale 自动换算) |
     | `description`| String | 是 | 交易品种描述 (当前内容与 name 相同) |
-    | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (手数) |
+    | `minTradeAmount`| Double | 是 | **[MANDATORY]** 最小交易数量 (由网关直接透传 Dukascopy SDK `getMinTradeAmount()` 返回的原生绝对数值例如外汇为 `1000`。任何换算均由核心引擎在下单时自动侦测并转换，网关无需进行诸如除以 `1,000,000` 的操作) |
 
