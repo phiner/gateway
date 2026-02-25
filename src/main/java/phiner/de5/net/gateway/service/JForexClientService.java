@@ -11,6 +11,11 @@ import org.springframework.stereotype.Service;
 import phiner.de5.net.gateway.config.JForexProperties;
 import phiner.de5.net.gateway.strategy.TradingStrategy;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,6 +25,9 @@ public class JForexClientService {
     private final TradingStrategy tradingStrategy;
     private final RedisService redisService;
     private IClient client;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledFuture<?> periodicConnectTask;
+    private ScheduledFuture<?> delayedReconnectTask;
 
     @PostConstruct
     public void init() {
@@ -28,7 +36,9 @@ public class JForexClientService {
             redisService.testConnection();
             log.info("Redis connection established.");
 
-            this.client = ClientFactory.getDefaultInstance();
+            if (this.client == null) {
+                this.client = ClientFactory.getDefaultInstance();
+            }
             setupListener();
             connect();
         } catch (Exception e) {
@@ -39,8 +49,6 @@ public class JForexClientService {
 
     private void setupListener() {
         client.setSystemListener(new ISystemListener() {
-            private int lightReconnects = 3;
-
             @Override
             public void onStart(long processId) {
                 log.info("JForex Strategy started successfully with processId: {}", processId);
@@ -54,26 +62,54 @@ public class JForexClientService {
             @Override
             public void onConnect() {
                 log.info("Successfully connected to JForex server");
-                lightReconnects = 3;
+                cancelReconnectionTasks();
                 startStrategy();
             }
 
             @Override
             public void onDisconnect() {
                 log.warn("Disconnected from JForex server");
-                if (lightReconnects > 0) {
-                    log.info("Attempting to reconnect ({} attempts remaining)...", lightReconnects);
-                    try {
-                        client.reconnect();
-                    } catch (Exception e) {
-                        log.error("Reconnection attempt failed: {}", e.getMessage());
-                    }
-                    lightReconnects--;
-                } else {
-                    log.error("Exceeded maximum reconnection attempts.");
-                }
+                scheduleReconnection();
             }
         });
+    }
+
+    private void scheduleReconnection() {
+        // 取消之前的延迟重连任务，避免重复
+        if (delayedReconnectTask != null && !delayedReconnectTask.isDone()) {
+            delayedReconnectTask.cancel(false);
+        }
+
+        log.info("Scheduling light reconnect in 15 seconds...");
+        delayedReconnectTask = scheduler.schedule(() -> {
+            try {
+                log.info("Attempting light reconnect...");
+                client.reconnect();
+            } catch (Exception e) {
+                log.error("Light reconnection attempt failed: {}", e.getMessage());
+            }
+        }, 15, TimeUnit.SECONDS);
+
+        // 如果周期性全连接任务未运行，则启动之（每3分钟尝试一次全连接）
+        if (periodicConnectTask == null || periodicConnectTask.isDone()) {
+            log.info("Starting periodic full connect task (every 3 minutes)...");
+            periodicConnectTask = scheduler.scheduleAtFixedRate(() -> {
+                log.info("Periodic full connect task triggered.");
+                connect();
+            }, 3, 3, TimeUnit.MINUTES);
+        }
+    }
+
+    private void cancelReconnectionTasks() {
+        if (delayedReconnectTask != null) {
+            delayedReconnectTask.cancel(false);
+            delayedReconnectTask = null;
+        }
+        if (periodicConnectTask != null) {
+            log.info("Cancelling periodic full connect task.");
+            periodicConnectTask.cancel(false);
+            periodicConnectTask = null;
+        }
     }
 
     private void connect() {
@@ -101,6 +137,8 @@ public class JForexClientService {
 
     @PreDestroy
     public void shutdown() {
+        log.info("Shutting down JForexClientService scheduler...");
+        scheduler.shutdownNow();
         if (client != null) {
             log.info("Shutting down JForex client...");
             try {
