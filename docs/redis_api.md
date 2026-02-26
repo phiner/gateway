@@ -131,17 +131,19 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     {
       "balance": 10000.00,
       "equity": 10050.55,
+      "baseEquity": 10005.00,
       "margin": 50.00,
-      "unrealizedPL": 50.55
+      "unrealizedPL": 45.55
     }
     ```
 *   **字段说明**:
     | 字段名 | 类型 | 是否必需 | 描述 |
     | :--- | :--- | :--- | :--- |
-    | `balance` | Double | 是 | 账户余额 |
-    | `equity` | Double | 是 | 账户净值 (余额 + 未实现盈亏) |
+    | `balance` | Double | 是 | 账户结算余额 (通常为上个交易日结算后的金额) |
+    | `equity` | Double | 是 | 账户实时净值 (余额 + 实时盈亏) |
+    | `baseEquity`| Double | 是 | 账户实时结算价值 (包含当日已实现盈亏，不含浮动盈亏) |
     | `margin` | Double | 是 | 已用保证金 |
-    | `unrealizedPL` | Double | 是 | 未实现盈亏总计 |
+    | `unrealizedPL` | Double | 是 | 未实现盈亏总计 (Equity - BaseEquity) |
 
 ### 系统通知
 

@@ -10,13 +10,15 @@ public class AccountStatusDTOTest {
     public void testConstructorAndGetters() {
         double balance = 10000.0;
         double equity = 12000.0;
+        double baseEquity = 10500.0;
         double margin = 50.0;
-        double unrealizedPL = 2000.0;
+        double unrealizedPL = 1500.0;
 
-        AccountStatusDTO accountStatusDTO = new AccountStatusDTO(balance, equity, margin, unrealizedPL);
+        AccountStatusDTO accountStatusDTO = new AccountStatusDTO(balance, equity, baseEquity, margin, unrealizedPL);
 
         assertEquals(balance, accountStatusDTO.getBalance());
         assertEquals(equity, accountStatusDTO.getEquity());
+        assertEquals(baseEquity, accountStatusDTO.getBaseEquity());
         assertEquals(margin, accountStatusDTO.getMargin());
         assertEquals(unrealizedPL, accountStatusDTO.getUnrealizedPL());
     }

@@ -239,10 +239,11 @@ public class TradingStrategy implements IStrategy {
       eventProcessor.submit(() -> {
           double balance = account.getBalance();
           double equity = account.getEquity();
+          double baseEquity = account.getBaseEquity();
           double margin = account.getUsedMargin();
-          double unrealizedPL = equity - balance;
+          double unrealizedPL = equity - baseEquity;
           
-          redisService.publishAccountStatus(balance, equity, margin, unrealizedPL);
+          redisService.publishAccountStatus(balance, equity, baseEquity, margin, unrealizedPL);
       });
     }
   }
