@@ -24,13 +24,6 @@ public class OrderSubmitListener implements MessageListener {
     @Override
     public void onMessage(@NonNull Message message, @Nullable byte[] pattern) {
         try {
-            // DIAGNOSTICS: Print raw JSON to console for debugging
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper(new org.msgpack.jackson.dataformat.MessagePackFactory());
-            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(message.getBody());
-            System.out.println("====== RAW SUBMIT ORDER MSG ======");
-            System.out.println(rootNode.toPrettyString());
-            System.out.println("==================================");
-
             SubmitOrderRequest request = MsgpackDecoder.decode(message.getBody(), SubmitOrderRequest.class);
             if (request != null) {
                 tradingStrategy.submitOrder(request);
