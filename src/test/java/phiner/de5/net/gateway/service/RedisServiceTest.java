@@ -166,19 +166,21 @@ public class RedisServiceTest {
     public void testPublishAccountStatus() {
         double balance = 10000.0;
         double equity = 10500.50;
+        double baseEquity = 10005.0;
         double margin = 50.0;
-        double unrealizedPL = 500.50;
+        double unrealizedPL = 495.50;
         byte[] statusData = "mocked-status-data".getBytes();
         String expectedChannel = "account:status";
         ArgumentCaptor<AccountStatusDTO> captor = ArgumentCaptor.forClass(AccountStatusDTO.class);
 
         mockedEncoder.when(() -> MsgpackEncoder.encode(captor.capture())).thenReturn(statusData);
 
-        redisService.publishAccountStatus(balance, equity, margin, unrealizedPL);
+        redisService.publishAccountStatus(balance, equity, baseEquity, margin, unrealizedPL);
 
         verify(redisTemplateBytes).convertAndSend(expectedChannel, statusData);
         assertEquals(balance, captor.getValue().getBalance());
         assertEquals(equity, captor.getValue().getEquity());
+        assertEquals(baseEquity, captor.getValue().getBaseEquity());
         assertEquals(margin, captor.getValue().getMargin());
         assertEquals(unrealizedPL, captor.getValue().getUnrealizedPL());
     }
