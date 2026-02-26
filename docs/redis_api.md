@@ -130,7 +130,9 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     ```json
     {
       "balance": 10000.00,
-      "equity": 10050.55
+      "equity": 10050.55,
+      "margin": 50.00,
+      "unrealizedPL": 50.55
     }
     ```
 *   **字段说明**:
@@ -138,6 +140,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | :--- | :--- | :--- | :--- |
     | `balance` | Double | 是 | 账户余额 |
     | `equity` | Double | 是 | 账户净值 (余额 + 未实现盈亏) |
+    | `margin` | Double | 是 | 已用保证金 |
+    | `unrealizedPL` | Double | 是 | 未实现盈亏总计 |
 
 ### 系统通知
 
