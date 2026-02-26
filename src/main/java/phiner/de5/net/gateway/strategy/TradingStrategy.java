@@ -470,7 +470,7 @@ public class TradingStrategy implements IStrategy {
                 new phiner.de5.net.gateway.dto.PositionListResponseDTO(positions);
             
             redisService.publishPositions(responseDTO, requestId);
-            log.info("Published {} positions for requestId: {}", positions.size(), requestId);
+            log.debug("Published {} positions for requestId: {}", positions.size(), requestId);
             return null;
         }, "Positions Request");
     }
