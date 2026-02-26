@@ -43,8 +43,6 @@ jobs:
           cache: maven
 
       - name: Build and Push with Jib
-        with:
-          provenance: false
         run: |
           ./mvnw compile jib:build \
             -Djib.to.auth.username=${{ github.actor }} \
