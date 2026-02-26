@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class OpenMarketOrderRequest {
 
     private final String instrument;
-    private final double amount;
+    private final Double amount;
     private final MarketOrderType orderType;
     private final String label; // Added field
     private final Double slippage;
@@ -16,7 +16,7 @@ public class OpenMarketOrderRequest {
     @JsonCreator
     public OpenMarketOrderRequest(
             @JsonProperty("instrument") String instrument,
-            @JsonProperty("amount") double amount,
+            @JsonProperty("amount") Double amount,
             @JsonProperty("orderType") MarketOrderType orderType,
             @JsonProperty("label") String label, // Added field
             @JsonProperty("slippage") Double slippage,
@@ -36,7 +36,7 @@ public class OpenMarketOrderRequest {
         return instrument;
     }
 
-    public double getAmount() {
+    public Double getAmount() {
         return amount;
     }
 

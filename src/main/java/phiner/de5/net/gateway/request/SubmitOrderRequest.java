@@ -16,13 +16,15 @@ public class SubmitOrderRequest {
     @JsonProperty("orderCommand")
     private String orderCommand;
     @JsonProperty("amount")
-    private double amount;
+    private Double amount;
     @JsonProperty("price")
-    private double price;
+    private Double price;
     @JsonProperty("label") // Added field
     private String label;
+    @JsonProperty("slippage")
+    private Double slippage;
     @JsonProperty("stopLossPrice")
-    private double stopLossPrice;
+    private Double stopLossPrice;
     @JsonProperty("takeProfitPrice")
-    private double takeProfitPrice;
+    private Double takeProfitPrice;
 }

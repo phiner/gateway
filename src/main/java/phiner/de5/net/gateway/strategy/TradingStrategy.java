@@ -287,7 +287,7 @@ public class TradingStrategy implements IStrategy {
         runTask(() -> {
         Instrument instrument = Instrument.fromString(request.getInstrument());
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
-        double amount = request.getAmount();
+        double amount = request.getAmount() != null ? request.getAmount() : 0.0;
         String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
         context.getEngine().submitOrder(
@@ -296,9 +296,9 @@ public class TradingStrategy implements IStrategy {
                 command,
                 amount,
                 0, // 价格
-                request.getSlippage() != null ? request.getSlippage() : 0, // 滑点
-                request.getStopLossPrice() != null ? request.getStopLossPrice() : 0, // 止损价
-                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0 // 止盈价
+                request.getSlippage() != null ? request.getSlippage() : 0.0, // 滑点
+                request.getStopLossPrice() != null ? request.getStopLossPrice() : 0.0, // 止损价
+                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0.0 // 止盈价
         );
             return null;
         }, "Open Market Order [" + request.getInstrument() + "]");
@@ -322,16 +322,19 @@ public class TradingStrategy implements IStrategy {
             IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
             String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
-            double stopLossPrice = request.getStopLossPrice();
-            double takeProfitPrice = request.getTakeProfitPrice();
+            double stopLossPrice = request.getStopLossPrice() != null ? request.getStopLossPrice() : 0.0;
+            double takeProfitPrice = request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0.0;
+            double amount = request.getAmount() != null ? request.getAmount() : 0.0;
+            double price = request.getPrice() != null ? request.getPrice() : 0.0;
+            double slippage = request.getSlippage() != null ? request.getSlippage() : 0.0;
 
             context.getEngine().submitOrder(
                     finalLabel,
                     instrument,
                     command,
-                    request.getAmount(),
-                    request.getPrice(),
-                    0, // 挂单不适用滑点
+                    amount,
+                    price,
+                    slippage,
                     stopLossPrice,
                     takeProfitPrice
             );
