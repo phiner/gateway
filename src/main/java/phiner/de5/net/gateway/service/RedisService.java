@@ -133,10 +133,10 @@ public class RedisService {
     }
   }
 
-  public void publishAccountStatus(double balance, double equity) {
+  public void publishAccountStatus(double balance, double equity, double margin, double unrealizedPL) {
     String channel = "account:status";
     try {
-      AccountStatusDTO accountStatus = new AccountStatusDTO(balance, equity);
+      AccountStatusDTO accountStatus = new AccountStatusDTO(balance, equity, margin, unrealizedPL);
       byte[] data = MsgpackEncoder.encode(accountStatus);
 
       if (data != null) {
