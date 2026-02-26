@@ -37,6 +37,8 @@ public class OrderEventDTOTest {
         when(order.getOrderCommand()).thenReturn(IEngine.OrderCommand.BUY);
         when(order.getAmount()).thenReturn(1.0);
         when(order.getOpenPrice()).thenReturn(1.2);
+        when(order.getStopLossPrice()).thenReturn(1.1);
+        when(order.getTakeProfitPrice()).thenReturn(1.4);
         when(order.getFillTime()).thenReturn(987654321L);
         when(order.getClosePrice()).thenReturn(1.3);
         when(order.getCloseTime()).thenReturn(111222333L);
@@ -56,6 +58,8 @@ public class OrderEventDTOTest {
         assertEquals("BUY", dto.getOrderCommand());
         assertEquals(1.0, dto.getAmount());
         assertEquals(1.2, dto.getOpenPrice());
+        assertEquals(1.1, dto.getStopLossPrice());
+        assertEquals(1.4, dto.getTakeProfitPrice());
         assertEquals(987654321L, dto.getFillTime());
         assertEquals(1.3, dto.getClosePrice());
         assertEquals(111222333L, dto.getCloseTime());

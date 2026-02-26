@@ -28,6 +28,8 @@ public class OrderEventDTO implements Serializable {
     private final String orderCommand;
     private final double amount;
     private final double openPrice;
+    private final Double stopLossPrice;
+    private final Double takeProfitPrice;
     private final Long fillTime;
     private final Double closePrice;
     private final Long closeTime;
@@ -61,6 +63,8 @@ public class OrderEventDTO implements Serializable {
             this.orderCommand = order.getOrderCommand().toString();
             this.amount = order.getAmount();
             this.openPrice = order.getOpenPrice();
+            this.stopLossPrice = order.getStopLossPrice();
+            this.takeProfitPrice = order.getTakeProfitPrice();
             this.fillTime = order.getFillTime();
             this.closePrice = order.getClosePrice();
             this.closeTime = order.getCloseTime();
@@ -71,6 +75,8 @@ public class OrderEventDTO implements Serializable {
             this.orderCommand = null;
             this.amount = 0;
             this.openPrice = 0;
+            this.stopLossPrice = null;
+            this.takeProfitPrice = null;
             this.fillTime = null;
             this.closePrice = null;
             this.closeTime = null;
@@ -119,6 +125,14 @@ public class OrderEventDTO implements Serializable {
         return openPrice;
     }
 
+    public Double getStopLossPrice() {
+        return stopLossPrice;
+    }
+
+    public Double getTakeProfitPrice() {
+        return takeProfitPrice;
+    }
+
     public Long getFillTime() {
         return fillTime;
     }
@@ -144,6 +158,8 @@ public class OrderEventDTO implements Serializable {
                 ", orderCommand='" + orderCommand + "'" +
                 ", amount=" + amount +
                 ", openPrice=" + openPrice +
+                ", stopLossPrice=" + stopLossPrice +
+                ", takeProfitPrice=" + takeProfitPrice +
                 ", fillTime=" + fillTime +
                 ", closePrice=" + closePrice +
                 ", closeTime=" + closeTime +

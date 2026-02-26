@@ -102,6 +102,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
       "orderCommand": "BUY",
       "amount": 0.01,
       "openPrice": 1.07515,
+      "stopLossPrice": 1.07000,
+      "takeProfitPrice": 1.08000,
       "fillTime": 1678886410000,
       "closePrice": null,
       "closeTime": null
@@ -120,6 +122,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
     | `orderCommand`| String | 是 | 订单指令, e.g., "BUY", "SELL", "BUY_LIMIT" |
     | `amount` | Double | 是 | 订单数量 (手数) |
     | `openPrice`| Double | 是 | 开仓价格 |
+    | `stopLossPrice`| Double | 否 | 止损价格 |
+    | `takeProfitPrice`| Double | 否 | 止盈价格 |
     | `fillTime` | Long | 否 | 订单成交时间 (Unix 毫秒) |
     | `closePrice`| Double | 否 | 平仓价格 |
     | `closeTime` | Long | 否 | 订单关闭时间 (Unix 毫秒) |
@@ -242,6 +246,8 @@ K 线的历史数据量是**有限的**。这个上限在网关的 `application.
               "direction": "BUY",
               "amount": 0.01,
               "openPrice": 1.075,
+              "stopLossPrice": 1.070,
+              "takeProfitPrice": 1.080,
               "profitLoss": 15.2
             }
           ]

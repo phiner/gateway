@@ -16,6 +16,8 @@ public class PositionDTO {
     private String direction;
     private double amount;
     private double openPrice;
+    private double stopLossPrice;
+    private double takeProfitPrice;
     private double profitLoss;
 
     public PositionDTO(IOrder order) throws JFException {
@@ -25,6 +27,8 @@ public class PositionDTO {
         this.direction = order.isLong() ? "BUY" : "SELL";
         this.amount = order.getAmount();
         this.openPrice = order.getOpenPrice();
+        this.stopLossPrice = order.getStopLossPrice();
+        this.takeProfitPrice = order.getTakeProfitPrice();
         this.profitLoss = order.getProfitLossInAccountCurrency();
     }
 }
