@@ -43,6 +43,8 @@ jobs:
           cache: maven
 
       - name: Build and Push with Jib
+        with:
+          provenance: false
         run: |
           ./mvnw compile jib:build \
             -Djib.to.auth.username=${{ github.actor }} \
@@ -53,4 +55,4 @@ jobs:
         with:
           package-name: ${{ github.event.repository.name }}
           package-type: 'container'
-          min-versions-to-keep: 3
+          min-versions-to-keep: 4
