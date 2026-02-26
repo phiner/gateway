@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import phiner.de5.net.gateway.config.ForexProperties;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
@@ -235,7 +236,14 @@ public class TradingStrategy implements IStrategy {
   @Override
   public void onAccount(IAccount account) {
     if (account != null && eventProcessor != null && !eventProcessor.isShutdown()) {
-      eventProcessor.submit(() -> redisService.publishAccountStatus(account.getBalance(), account.getEquity()));
+      eventProcessor.submit(() -> {
+          double balance = account.getBalance();
+          double equity = account.getEquity();
+          double margin = account.getUsedMargin();
+          double unrealizedPL = equity - balance;
+          
+          redisService.publishAccountStatus(balance, equity, margin, unrealizedPL);
+      });
     }
   }
 
@@ -277,6 +285,28 @@ public class TradingStrategy implements IStrategy {
 
   public IContext getContext() {
     return context;
+  }
+
+  /**
+   * 定期发送心跳和账户状态，解决前端显示 DISCONNECTED 的问题并保持数据同步。
+   */
+  @Scheduled(fixedRate = 5000)
+  public void heartbeat() {
+    if (context != null) {
+      // 广播网关连接状态
+      redisService.publishGatewayStatus(
+          new GatewayStatusDTO("CONNECTED", "Heartbeat: Gateway is active and processing events."));
+      
+      // 广播账户最新状态
+      try {
+          IAccount account = context.getAccount();
+          if (account != null) {
+              onAccount(account);
+          }
+      } catch (Exception e) {
+          log.warn("Failed to fetch account info during heartbeat", e);
+      }
+    }
   }
 
   public void setExecutor(ExecutorService executor) {
