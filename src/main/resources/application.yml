@@ -29,6 +29,8 @@ forex:
 gateway:
   kline:
     storage-limit: 45
+  heartbeat:
+    fixed-rate: ${GATEWAY_HEARTBEAT_INTERVAL:15000}
 
 # JForex Connection Settings
 jforex.url: ${JFOREX_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
