@@ -113,6 +113,14 @@
     *   参数: `orderId` (网关返回的 dealId 或 label)。
 *   **`order:submit`**: 提交挂单 (Limit/Stop)。
 *   **`order:modify`**: 修改活跃订单的止盈止损。
+    - **参数结构**:
+        | 字段名 | 类型 | 描述 |
+        | :--- | :--- | :--- |
+        | `orderId` | String | (必填) 订单的 `dealId` 或标签名 `label` |
+        | `stopLossPrice` | Double | (可选) 新的止损价格。若为 `0` 或不传则不修改 |
+        | `takeProfitPrice` | Double | (可选) 新的止盈止损价格。若为 `0` 或不传则不修改 |
+        | `requestId` | String | (可选) 用于日志追踪的唯一 ID |
+    - **技术说明**: 网关采用**异步顺序更新**机制。如果同时修改 SL 和 TP，网关会先发起 SL 修改，在监听到服务器确认成功后，再自动触发 TP 修改。这可以有效避免由于修改频率过快（1秒内多次）被交易所服务器拒绝的问题。
 
 ### 持仓同步请求
 *   **请求频道**: `system:request:positions`

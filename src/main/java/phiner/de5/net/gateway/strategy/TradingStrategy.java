@@ -3,8 +3,11 @@ package phiner.de5.net.gateway.strategy;
 import com.dukascopy.api.*;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -29,7 +32,8 @@ public class TradingStrategy implements IStrategy {
   private ExecutorService executor; // 原始执行器，可能用于订单相关操作
   private ExecutorService eventProcessor; // 用于异步处理 JForex 事件的新执行器
 
-  private final Set<Instrument> subscribedInstruments = new HashSet<>();
+  private final Set<Instrument> subscribedInstruments = ConcurrentHashMap.newKeySet();
+  private final Map<String, Double> pendingTakeProfits = new ConcurrentHashMap<>();
   private final Set<Period> configuredPeriods = new HashSet<>();
   private final TickManager tickManager;
   private final KLineManager kLineManager;
@@ -233,6 +237,19 @@ public class TradingStrategy implements IStrategy {
                                   type == IMessage.Type.ORDER_CHANGED_OK)) {
               log.info("Order event {} for {}, triggering full position sync", type, order.getLabel());
               triggerFullPositionSync();
+
+              // 异步逻辑：如果 SL 修改成功且存在待处理的 TP 修改，则触发它
+              if (type == IMessage.Type.ORDER_CHANGED_OK) {
+                  Double targetTP = pendingTakeProfits.remove(order.getId());
+                  if (targetTP != null) {
+                      log.info("SL modification confirmed for {}, now applying pending TP: {}", order.getLabel(), targetTP);
+                      try {
+                          order.setTakeProfitPrice(targetTP);
+                      } catch (Exception e) {
+                          log.error("Failed to apply pending TP for order {}: {}", order.getLabel(), e.getMessage());
+                      }
+                  }
+              }
             }
           } catch (Exception e) {
             log.error("Error processing order message for position sync", e);
@@ -389,9 +406,14 @@ public class TradingStrategy implements IStrategy {
                 double takeProfitPrice = request.getTakeProfitPrice();
 
                 if (stopLossPrice > 0) {
+                    // 如果同时涉及 TP，先记录 TP，待 SL 修改成功后再触发
+                    if (takeProfitPrice > 0) {
+                        pendingTakeProfits.put(order.getId(), takeProfitPrice);
+                        log.debug("Queued TP modification for order {}: {}", request.getOrderId(), takeProfitPrice);
+                    }
                     order.setStopLossPrice(stopLossPrice);
-                }
-                if (takeProfitPrice > 0) {
+                } else if (takeProfitPrice > 0) {
+                    // 仅修改 TP
                     order.setTakeProfitPrice(takeProfitPrice);
                 }
             } else {
