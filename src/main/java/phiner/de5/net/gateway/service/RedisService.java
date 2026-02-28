@@ -2,7 +2,9 @@ package phiner.de5.net.gateway.service;
 
 import com.dukascopy.api.IMessage;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -17,6 +19,9 @@ import phiner.de5.net.gateway.dto.BarDTO;
 import phiner.de5.net.gateway.dto.GatewayStatusDTO;
 import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
 import phiner.de5.net.gateway.dto.OrderEventDTO;
+import phiner.de5.net.gateway.dto.OrderHistoryDTO;
+import phiner.de5.net.gateway.dto.OrdersHistoryResponseDTO;
+import phiner.de5.net.gateway.dto.PositionDTO;
 import phiner.de5.net.gateway.dto.TickDTO;
 
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +34,10 @@ public class RedisService {
   private int klineStorageLimit;
 
   private static final String KLINE_KEY_PREFIX = "kline";
+  private static final String POSITIONS_HASH_KEY = "gateway:positions:active";
+  private static final String POSITIONS_UPDATED_CHANNEL = "gateway:positions:updated";
+  private static final String HISTORY_HASH_KEY = "gateway:orders:history";
+  private static final String HISTORY_UPDATED_CHANNEL = "gateway:orders:history:updated";
 
   private final RedisTemplate<String, byte[]> redisTemplateBytes;
   private final RedisTemplate<String, String> redisTemplateString;
@@ -189,16 +198,12 @@ public class RedisService {
         }
     }
 
+    /**
+     * @deprecated Use refreshPositionsHash instead. This request-response method is being phased out in favor of the Hash-based state model.
+     */
+    @Deprecated
     public void publishPositions(@NonNull phiner.de5.net.gateway.dto.PositionListResponseDTO response, @NonNull String requestId) {
-        String channel = String.format("info:positions:response:%s", requestId);
-        try {
-            byte[] data = MsgpackEncoder.encode(response);
-            if (data != null) {
-                redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to publish positions for request {}: {}", requestId, e.getMessage());
-        }
+        // No-op. Clients should use the baseline Hash: gateway:positions:active
     }
 
     public void testConnection() {
@@ -245,6 +250,62 @@ public class RedisService {
             }
         } catch (Exception e) {
             log.error("Failed to save instrument info for {} to Redis: {}", info.getName(), e.getMessage(), e);
+        }
+    }
+
+    public void refreshPositionsHash(@NonNull List<PositionDTO> positions) {
+        try {
+            redisTemplateBytes.delete(POSITIONS_HASH_KEY);
+            if (!positions.isEmpty()) {
+                for (PositionDTO pos : positions) {
+                    byte[] data = MsgpackEncoder.encode(pos);
+                    if (data != null) {
+                        redisTemplateBytes.opsForHash().put(POSITIONS_HASH_KEY, pos.getDealId(), data);
+                    }
+                }
+                log.info("Refreshed positions hash with {} positions", positions.size());
+            } else {
+                log.info("Refreshed positions hash (empty)");
+            }
+            notifyPositionsUpdated();
+        } catch (Exception e) {
+            log.error("Failed to refresh positions hash: {}", e.getMessage(), e);
+        }
+    }
+
+    public void notifyPositionsUpdated() {
+        try {
+            String message = String.valueOf(System.currentTimeMillis());
+            redisTemplateString.convertAndSend(POSITIONS_UPDATED_CHANNEL, message);
+        } catch (Exception e) {
+            log.warn("Failed to send positions updated notification: {}", e.getMessage());
+        }
+    }
+
+    public void updateHistoryHash(@NonNull List<OrderHistoryDTO> orders) {
+        try {
+            Map<String, byte[]> map = new HashMap<>();
+            for (OrderHistoryDTO order : orders) {
+                byte[] data = MsgpackEncoder.encode(order);
+                if (data != null) {
+                    map.put(order.getDealId(), data);
+                }
+            }
+            if (!map.isEmpty()) {
+                redisTemplateBytes.opsForHash().putAll(HISTORY_HASH_KEY, map);
+                log.info("Updated history hash with {} orders", map.size());
+            }
+        } catch (Exception e) {
+            log.error("Failed to update history hash: {}", e.getMessage());
+        }
+    }
+
+    public void notifyHistoryUpdated(@NonNull String instrument) {
+        try {
+            // Notification payload can be the instrument name to let clients know which product's history grew
+            redisTemplateString.convertAndSend(HISTORY_UPDATED_CHANNEL, instrument);
+        } catch (Exception e) {
+            log.warn("Failed to send history updated notification: {}", e.getMessage());
         }
     }
 }

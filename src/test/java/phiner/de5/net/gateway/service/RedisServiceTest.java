@@ -10,6 +10,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ListOperations;
 import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import phiner.de5.net.gateway.MsgpackDecoder;
@@ -37,6 +38,9 @@ public class RedisServiceTest {
 
     @Mock
     private SetOperations<String, String> setOperationsString;
+
+    @Mock
+    private HashOperations<String, Object, Object> hashOperationsBytes;
 
     @Mock
     private IBar iBar;
@@ -266,6 +270,55 @@ public class RedisServiceTest {
 
         verify(redisTemplateString).delete(key);
         verify(setOperationsString).add(key, periods.toArray(new String[0]));
+    }
+
+    @Test
+    public void testRefreshPositionsHash_Success() {
+        PositionDTO pos = new PositionDTO("deal1", "ref1", "EUR/USD", "BUY", 0.1, 1.1, 1.0, 1.2, 10.0);
+        List<PositionDTO> positions = List.of(pos);
+        byte[] posData = "mocked-pos-data".getBytes();
+        String hashKey = "gateway:positions:active";
+
+        when(redisTemplateBytes.opsForHash()).thenReturn(hashOperationsBytes);
+        mockedEncoder.when(() -> MsgpackEncoder.encode(pos)).thenReturn(posData);
+
+        redisService.refreshPositionsHash(positions);
+
+        verify(redisTemplateBytes).delete(hashKey);
+        verify(hashOperationsBytes).put(hashKey, "deal1", posData);
+        verify(redisTemplateString).convertAndSend(eq("gateway:positions:updated"), anyString());
+    }
+
+    @Test
+    public void testNotifyPositionsUpdated() {
+        redisService.notifyPositionsUpdated();
+        verify(redisTemplateString).convertAndSend(eq("gateway:positions:updated"), anyString());
+    }
+
+    @Test
+    public void testUpdateHistoryHash_Success() {
+        OrderHistoryDTO order = new OrderHistoryDTO();
+        order.setDealId("deal-hist-1");
+        List<OrderHistoryDTO> orders = List.of(order);
+        byte[] orderData = "mocked-order-data".getBytes();
+        String hashKey = "gateway:orders:history";
+
+        when(redisTemplateBytes.opsForHash()).thenReturn(hashOperationsBytes);
+        mockedEncoder.when(() -> MsgpackEncoder.encode(order)).thenReturn(orderData);
+
+        redisService.updateHistoryHash(orders);
+
+        ArgumentCaptor<java.util.Map<String, byte[]>> mapCaptor = ArgumentCaptor.forClass(java.util.Map.class);
+        verify(hashOperationsBytes).putAll(eq(hashKey), mapCaptor.capture());
+        assertEquals(1, mapCaptor.getValue().size());
+        assertArrayEquals(orderData, mapCaptor.getValue().get("deal-hist-1"));
+    }
+
+    @Test
+    public void testNotifyHistoryUpdated() {
+        String instrument = "EUR/USD";
+        redisService.notifyHistoryUpdated(instrument);
+        verify(redisTemplateString).convertAndSend("gateway:orders:history:updated", instrument);
     }
     //</editor-fold>
 
