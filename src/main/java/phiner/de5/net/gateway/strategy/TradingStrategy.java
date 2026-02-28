@@ -15,9 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import phiner.de5.net.gateway.config.ForexProperties;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
-import phiner.de5.net.gateway.dto.BarDTO;
-import phiner.de5.net.gateway.dto.GatewayStatusDTO;
-import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
+import phiner.de5.net.gateway.dto.*;
 import phiner.de5.net.gateway.request.*;
 import phiner.de5.net.gateway.service.RedisService;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +38,9 @@ public class TradingStrategy implements IStrategy {
 
   @Value("${gateway.kline.storage-limit}")
   private int klineStorageLimit;
+
+  @Value("${gateway.heartbeat.fixed-rate:15000}")
+  private long heartbeatRate;
 
   public TradingStrategy(
       TickManager tickManager, KLineManager kLineManager, RedisService redisService, ForexProperties forexProperties) {
@@ -184,6 +185,9 @@ public class TradingStrategy implements IStrategy {
           new GatewayStatusDTO(
               "CONNECTED", "交易策略已启动并成功连接至 Dukascopy。"));
       redisService.publishInfo("交易策略已启动。");
+
+      // Startup sync
+      runTask(this::triggerFullPositionSync, "Startup Full Position Sync");
     }
   }
 
@@ -223,11 +227,15 @@ public class TradingStrategy implements IStrategy {
           redisService.publishOrderEvent(message);
           try {
             IOrder order = message.getOrder();
-            if (order != null && message.getType() == IMessage.Type.ORDER_FILL_OK) {
-              log.info("Order filled: {}", order.getLabel());
+            IMessage.Type type = message.getType();
+            if (order != null && (type == IMessage.Type.ORDER_FILL_OK || 
+                                  type == IMessage.Type.ORDER_CLOSE_OK || 
+                                  type == IMessage.Type.ORDER_CHANGED_OK)) {
+              log.info("Order event {} for {}, triggering full position sync", type, order.getLabel());
+              triggerFullPositionSync();
             }
           } catch (Exception e) {
-            log.error("Error processing order message", e);
+            log.error("Error processing order message for position sync", e);
           }
       });
     }
@@ -291,7 +299,7 @@ public class TradingStrategy implements IStrategy {
   /**
    * 定期发送心跳和账户状态，解决前端显示 DISCONNECTED 的问题并保持数据同步。
    */
-  @Scheduled(fixedRate = 5000)
+  @Scheduled(fixedRateString = "${gateway.heartbeat.fixed-rate:15000}")
   public void heartbeat() {
     if (context != null) {
       // 广播网关连接状态
@@ -450,29 +458,8 @@ public class TradingStrategy implements IStrategy {
     }
 
     public void handlePositionsRequest(@NonNull phiner.de5.net.gateway.request.PositionsRequest request) {
-        runTask(() -> {
-            String requestId = request.getRequestId();
-            if (context == null || context.getEngine() == null) {
-                redisService.publishError("Engine not available to fetch positions.");
-                return null;
-            }
-
-            List<IOrder> orders = context.getEngine().getOrders();
-            List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
-            
-            for (IOrder order : orders) {
-                if (order.getState() == IOrder.State.FILLED) {
-                    positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
-                }
-            }
-
-            phiner.de5.net.gateway.dto.PositionListResponseDTO responseDTO = 
-                new phiner.de5.net.gateway.dto.PositionListResponseDTO(positions);
-            
-            redisService.publishPositions(responseDTO, requestId);
-            log.debug("Published {} positions for requestId: {}", positions.size(), requestId);
-            return null;
-        }, "Positions Request");
+        log.info("Manual positions request received, triggering full sync to Hash");
+        triggerFullPositionSync();
     }
 
     @FunctionalInterface
@@ -555,6 +542,77 @@ public class TradingStrategy implements IStrategy {
   public void subscribeToInstrument(Instrument instrument) {
     if (context != null && subscribedInstruments.add(instrument)) {
       context.setSubscribedInstruments(subscribedInstruments, true);
+    }
+  }
+
+  private Void triggerFullPositionSync() {
+    if (context == null || context.getEngine() == null) {
+        return null;
+    }
+    try {
+        List<IOrder> orders = context.getEngine().getOrders();
+        List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
+        for (IOrder order : orders) {
+            if (order.getState() == IOrder.State.FILLED) {
+                positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
+            }
+        }
+        redisService.refreshPositionsHash(positions);
+    } catch (Exception e) {
+        log.error("Failed to perform full position sync", e);
+    }
+    return null;
+  }
+
+  public void handleOrdersHistoryRequest(OrdersHistoryRequest request) {
+    if (context == null || context.getHistory() == null || context.getEngine() == null) {
+        log.warn("Context not initialized, cannot handle orders history request");
+        return;
+    }
+
+    String requestId = request.getRequestId();
+    long from = request.getStartTime();
+    long to = request.getEndTime() > 0 ? request.getEndTime() : context.getTime();
+    String instrumentName = request.getInstrument();
+
+    if (instrumentName == null || instrumentName.isEmpty()) {
+        log.warn("Instrument is mandatory for orders history request");
+        return;
+    }
+
+    log.info("Handling orders history request for instrument={}, from={}, to={}", instrumentName, from, to);
+
+    try {
+        List<OrderHistoryDTO> allOrders = new java.util.ArrayList<>();
+        Instrument instrument;
+        try {
+            instrument = Instrument.fromString(instrumentName);
+        } catch (Exception e) {
+            log.error("Invalid instrument in history request: {}", instrumentName);
+            return;
+        }
+
+        // 1. Fetch historical (closed/cancelled) orders ONLY
+        IHistory history = context.getHistory();
+        try {
+            List<IOrder> historyOrders = history.getOrdersHistory(instrument, from, to);
+            if (historyOrders != null) {
+                for (IOrder order : historyOrders) {
+                    allOrders.add(new OrderHistoryDTO(order));
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error fetching orders history for {}: {}", instrument, e.getMessage());
+        }
+
+        // 2. Add to global history Hash
+        redisService.updateHistoryHash(allOrders);
+
+        // 3. Broadcast notification
+        redisService.notifyHistoryUpdated(instrumentName);
+
+    } catch (Exception e) {
+        log.error("Failed to handle orders history request", e);
     }
   }
 }
