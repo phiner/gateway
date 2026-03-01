@@ -37,10 +37,14 @@ public class TradingStrategy implements IStrategy {
   private ExecutorService eventProcessor; // 用于异步处理 JForex 事件的新执行器
   private ScheduledExecutorService syncScheduler; // 用于持仓同步的延时执行器
   private ScheduledFuture<?> syncFuture; // 维护当前的延时任务
+  private ScheduledFuture<?> historySyncFuture; // 维护历史同步的延时任务
   private final AtomicBoolean syncPending = new AtomicBoolean(false); // 标记是否有待处理的同步
 
   private final Set<Instrument> subscribedInstruments = ConcurrentHashMap.newKeySet();
   private final Map<String, Double> pendingTakeProfits = new ConcurrentHashMap<>();
+  private final Set<Instrument> pendingHistorySyncs = ConcurrentHashMap.newKeySet();
+  private final java.util.concurrent.atomic.AtomicLong historySyncStartTime = new java.util.concurrent.atomic.AtomicLong(Long.MAX_VALUE);
+  private final java.util.concurrent.atomic.AtomicLong historySyncEndTime = new java.util.concurrent.atomic.AtomicLong(0);
   private final Set<Period> configuredPeriods = new HashSet<>();
   private final TickManager tickManager;
   private final KLineManager kLineManager;
@@ -357,6 +361,10 @@ public class TradingStrategy implements IStrategy {
       this.executor = executor;
   }
 
+  public void setSyncScheduler(ScheduledExecutorService syncScheduler) {
+      this.syncScheduler = syncScheduler;
+  }
+
   public void executeMarketOrder(OpenMarketOrderRequest request) {
         runTask(() -> {
         Instrument instrument = Instrument.fromString(request.getInstrument());
@@ -608,6 +616,99 @@ public class TradingStrategy implements IStrategy {
   }
 
   /**
+   * 触发历史同步的防抖 (Debounce for History Sync)
+   * 将多个品种的历史提取请求合并为一次顺序批处理。
+   */
+  private void scheduleDebouncedHistorySync(Instrument instrument, long startTime, long endTime) {
+      // 1. 更新缓冲池：增加品种并扩展时间跨度以覆盖所有请求
+      pendingHistorySyncs.add(instrument);
+      
+      long currentMin = historySyncStartTime.get();
+      if (startTime < currentMin) {
+          historySyncStartTime.compareAndSet(currentMin, startTime);
+      }
+      
+      long currentMax = historySyncEndTime.get();
+      if (endTime > currentMax) {
+          historySyncEndTime.compareAndSet(currentMax, endTime);
+      }
+
+      // 2. 重置防抖计时器
+      if (historySyncFuture != null && !historySyncFuture.isDone()) {
+          historySyncFuture.cancel(false);
+      }
+
+      log.info("Added {} to pending history sync queue, scheduling coalesced sync in 1s", instrument);
+
+      historySyncFuture = syncScheduler.schedule(() -> {
+          executeCoalescedHistorySync();
+      }, 1000, TimeUnit.MILLISECONDS);
+  }
+
+  /**
+   * 实际执行合并后的顺序历史同步逻辑
+   */
+  private void executeCoalescedHistorySync() {
+      if (context == null || context.getHistory() == null || context.getEngine() == null) {
+          return;
+      }
+
+      // 1. 提取快照并重置缓冲区
+      Set<Instrument> instrumentsToSync = new HashSet<>(pendingHistorySyncs);
+      pendingHistorySyncs.clear();
+      
+      long from = historySyncStartTime.getAndSet(Long.MAX_VALUE);
+      long to = historySyncEndTime.getAndSet(0);
+
+      if (instrumentsToSync.isEmpty()) return;
+
+      log.info("Executing coalesced history sync for {} instruments: {}, from={}, to={}", 
+               instrumentsToSync.size(), instrumentsToSync, from, to);
+
+      // 如果 endTime 为 0 或非法，降级为当前时间
+      if (to <= 0) to = context.getTime();
+      if (from == Long.MAX_VALUE) from = to - (24 * 3600 * 1000); // 默认过去24小时
+
+      final long finalFrom = from;
+      final long finalTo = to;
+
+      // 2. 提交到单线程 executor 顺序执行
+      executor.submit(() -> {
+          try {
+              for (Instrument instrument : instrumentsToSync) {
+                  log.info("Sequential History Extraction starting for {}", instrument);
+                  try {
+                      List<IOrder> historyOrders = context.getHistory().getOrdersHistory(instrument, finalFrom, finalTo);
+                      if (historyOrders != null && !historyOrders.isEmpty()) {
+                          List<OrderHistoryDTO> dtos = new java.util.ArrayList<>();
+                          for (IOrder order : historyOrders) {
+                              try {
+                                  dtos.add(new OrderHistoryDTO(order));
+                              } catch (JFException e) {
+                                  log.error("Failed to convert order {} to DTO: {}", order.getId(), e.getMessage());
+                              }
+                          }
+                          redisService.updateHistoryHash(dtos);
+                          log.info("Successfully extracted {} historical orders for {}", dtos.size(), instrument);
+                      } else {
+                          log.info("No historical orders found for {} in target range", instrument);
+                      }
+                  } catch (Exception e) {
+                      log.error("Failed to extract history for {}: {}", instrument, e.getMessage());
+                  }
+              }
+              
+              // 3. 所有提取完成后，发送一次统一通知
+              log.info("Coalesced history sync completed for all requested instruments. Sending notification.");
+              redisService.notifyHistoryUpdated("ALL"); // 使用 ALL 标志告知客户端全量刷新
+              
+          } catch (Exception e) {
+              log.error("Error in coalesced history sync worker", e);
+          }
+      });
+  }
+
+  /**
    * 实际执行全量持仓同步的核心逻辑
    */
   private Void executeFullPositionSync() {
@@ -636,49 +737,22 @@ public class TradingStrategy implements IStrategy {
         return;
     }
 
-    String requestId = request.getRequestId();
-    long from = request.getStartTime();
-    long to = request.getEndTime() > 0 ? request.getEndTime() : context.getTime();
     String instrumentName = request.getInstrument();
-
     if (instrumentName == null || instrumentName.isEmpty()) {
         log.warn("Instrument is mandatory for orders history request");
         return;
     }
 
-    log.info("Handling orders history request for instrument={}, from={}, to={}", instrumentName, from, to);
-
     try {
-        List<OrderHistoryDTO> allOrders = new java.util.ArrayList<>();
-        Instrument instrument;
-        try {
-            instrument = Instrument.fromString(instrumentName);
-        } catch (Exception e) {
-            log.error("Invalid instrument in history request: {}", instrumentName);
-            return;
-        }
+        Instrument instrument = Instrument.fromString(instrumentName);
+        long from = request.getStartTime();
+        long to = request.getEndTime() > 0 ? request.getEndTime() : context.getTime();
 
-        // 1. Fetch historical (closed/cancelled) orders ONLY
-        IHistory history = context.getHistory();
-        try {
-            List<IOrder> historyOrders = history.getOrdersHistory(instrument, from, to);
-            if (historyOrders != null) {
-                for (IOrder order : historyOrders) {
-                    allOrders.add(new OrderHistoryDTO(order));
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error fetching orders history for {}: {}", instrument, e.getMessage());
-        }
-
-        // 2. Add to global history Hash
-        redisService.updateHistoryHash(allOrders);
-
-        // 3. Broadcast notification
-        redisService.notifyHistoryUpdated(instrumentName);
-
+        // 不再立即执行同步，而是进入防抖合并队列
+        scheduleDebouncedHistorySync(instrument, from, to);
+        
     } catch (Exception e) {
-        log.error("Failed to handle orders history request", e);
+        log.error("Invalid instrument in history request: {}", instrumentName);
     }
   }
 }
