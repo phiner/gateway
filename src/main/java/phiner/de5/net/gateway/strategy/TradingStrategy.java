@@ -10,6 +10,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -31,6 +35,9 @@ public class TradingStrategy implements IStrategy {
   private IContext context;
   private ExecutorService executor; // 原始执行器，可能用于订单相关操作
   private ExecutorService eventProcessor; // 用于异步处理 JForex 事件的新执行器
+  private ScheduledExecutorService syncScheduler; // 用于持仓同步的延时执行器
+  private ScheduledFuture<?> syncFuture; // 维护当前的延时任务
+  private final AtomicBoolean syncPending = new AtomicBoolean(false); // 标记是否有待处理的同步
 
   private final Set<Instrument> subscribedInstruments = ConcurrentHashMap.newKeySet();
   private final Map<String, Double> pendingTakeProfits = new ConcurrentHashMap<>();
@@ -69,6 +76,10 @@ public class TradingStrategy implements IStrategy {
     }
     // 初始化事件处理器，用于异步处理报价、K线和消息
     this.eventProcessor = Executors.newSingleThreadExecutor();
+    // 初始化防抖同步调度器
+    if (this.syncScheduler == null) {
+        this.syncScheduler = Executors.newSingleThreadScheduledExecutor();
+    }
 
     if (context != null) {
       // 从配置中订阅交易产品
@@ -191,7 +202,7 @@ public class TradingStrategy implements IStrategy {
       redisService.publishInfo("交易策略已启动。");
 
       // Startup sync
-      runTask(this::triggerFullPositionSync, "Startup Full Position Sync");
+      runTask(this::executeFullPositionSync, "Startup Full Position Sync");
     }
   }
 
@@ -235,9 +246,8 @@ public class TradingStrategy implements IStrategy {
             if (order != null && (type == IMessage.Type.ORDER_FILL_OK || 
                                   type == IMessage.Type.ORDER_CLOSE_OK || 
                                   type == IMessage.Type.ORDER_CHANGED_OK)) {
-              log.info("Order event {} for {}, triggering full position sync", type, order.getLabel());
-              triggerFullPositionSync();
-
+              
+              boolean skipSync = false;
               // 异步逻辑：如果 SL 修改成功且存在待处理的 TP 修改，则触发它
               if (type == IMessage.Type.ORDER_CHANGED_OK) {
                   Double targetTP = pendingTakeProfits.remove(order.getId());
@@ -245,10 +255,16 @@ public class TradingStrategy implements IStrategy {
                       log.info("SL modification confirmed for {}, now applying pending TP: {}", order.getLabel(), targetTP);
                       try {
                           order.setTakeProfitPrice(targetTP);
+                          skipSync = true; // 状态感知：知道马上还要发生下一次修改，故跳过本次同步
                       } catch (Exception e) {
                           log.error("Failed to apply pending TP for order {}: {}", order.getLabel(), e.getMessage());
                       }
                   }
+              }
+
+              if (!skipSync) {
+                  log.info("Order event {} for {}, scheduling debounced position sync", type, order.getLabel());
+                  scheduleDebouncedPositionSync();
               }
             }
           } catch (Exception e) {
@@ -297,6 +313,9 @@ public class TradingStrategy implements IStrategy {
             eventProcessor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+    }
+    if (syncScheduler != null) {
+        syncScheduler.shutdownNow();
     }
     
     try {
@@ -480,8 +499,8 @@ public class TradingStrategy implements IStrategy {
     }
 
     public void handlePositionsRequest(@NonNull phiner.de5.net.gateway.request.PositionsRequest request) {
-        log.info("Manual positions request received, triggering full sync to Hash");
-        triggerFullPositionSync();
+        log.info("Manual positions request received, scheduling debounced sync to Hash");
+        scheduleDebouncedPositionSync();
     }
 
     @FunctionalInterface
@@ -567,23 +586,49 @@ public class TradingStrategy implements IStrategy {
     }
   }
 
-  private Void triggerFullPositionSync() {
-    if (context == null || context.getEngine() == null) {
-        return null;
-    }
-    try {
-        List<IOrder> orders = context.getEngine().getOrders();
-        List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
-        for (IOrder order : orders) {
-            if (order.getState() == IOrder.State.FILLED) {
-                positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
-            }
-        }
-        redisService.refreshPositionsHash(positions);
-    } catch (Exception e) {
-        log.error("Failed to perform full position sync", e);
-    }
-    return null;
+  /**
+   * 触发防抖的全局持仓同步 (True Debounce)
+   * 收纳短时间内如潮水般涌入的事件，延迟执行，重置计时器。
+   */
+  private void scheduleDebouncedPositionSync() {
+      // 每次调用时，如果已有正在倒计时的任务，且未开始执行，则取消它
+      if (syncFuture != null && !syncFuture.isDone()) {
+          syncFuture.cancel(false);
+      }
+      
+      // 标记有同步任务正在等待
+      syncPending.set(true);
+      
+      // 调度一个新的任务，在 1 秒（1000毫秒）后执行
+      syncFuture = syncScheduler.schedule(() -> {
+          // 在真正执行前，检查并清除标志。由于这是单线程池，不需要太复杂的锁
+          if (syncPending.compareAndSet(true, false)) {
+              executeFullPositionSync();
+          }
+      }, 1000, TimeUnit.MILLISECONDS);
+  }
+
+  /**
+   * 实际执行全量持仓同步的核心逻辑
+   */
+  private Void executeFullPositionSync() {
+      if (context == null || context.getEngine() == null) {
+          return null;
+      }
+      try {
+          List<IOrder> orders = context.getEngine().getOrders();
+          List<phiner.de5.net.gateway.dto.PositionDTO> positions = new java.util.ArrayList<>();
+          for (IOrder order : orders) {
+              if (order.getState() == IOrder.State.FILLED) {
+                  positions.add(new phiner.de5.net.gateway.dto.PositionDTO(order));
+              }
+          }
+          log.info("Executing coalesced full position sync for {} filled orders.", positions.size());
+          redisService.refreshPositionsHash(positions);
+      } catch (Exception e) {
+          log.error("Failed to perform full position sync", e);
+      }
+      return null;
   }
 
   public void handleOrdersHistoryRequest(OrdersHistoryRequest request) {

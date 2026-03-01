@@ -55,6 +55,13 @@ public class TradingStrategyTest {
     when(context.getEngine()).thenReturn(engine);
   }
 
+  @org.junit.jupiter.api.AfterEach
+  public void tearDown() {
+    if (tradingStrategy != null) {
+      tradingStrategy.onStop();
+    }
+  }
+
   @Test
   public void testHandleInstrumentInfoRequest_success() throws Exception {
     // Given
@@ -258,13 +265,28 @@ public class TradingStrategyTest {
       request.setTakeProfitPrice(1.1400);
       IOrder mockOrder = mock(IOrder.class);
       when(engine.getOrderById(orderId)).thenReturn(mockOrder);
+      when(mockOrder.getId()).thenReturn(orderId);
+      when(mockOrder.getLabel()).thenReturn("mock-label");
 
-      // When
+      // When: Client requests modification
       tradingStrategy.modifyOrder(request);
 
-      // Then
+      // Then: SL should be modified immediately
       verify(mockOrder).setStopLossPrice(1.1300);
-      verify(mockOrder).setTakeProfitPrice(1.1400);
+      // TP should NOT be set yet (it is queued)
+      verify(mockOrder, never()).setTakeProfitPrice(anyDouble());
+
+      // Simulate asynchronous server confirmation for SL change
+      IMessage mockMessage = mock(IMessage.class);
+      when(mockMessage.getOrder()).thenReturn(mockOrder);
+      when(mockMessage.getType()).thenReturn(IMessage.Type.ORDER_CHANGED_OK);
+      
+      // trigger event processor synchronously using our overridden mock
+      tradingStrategy.onMessage(mockMessage);
+
+      // Then: TP should now be set automatically by the onMessage listener
+      // We use timeout() because onMessage processes asynchronously via eventProcessor thread pool
+      verify(mockOrder, timeout(1000)).setTakeProfitPrice(1.1400);
   }
 
   @Test
