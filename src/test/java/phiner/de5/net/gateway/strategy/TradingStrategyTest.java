@@ -4,6 +4,10 @@ package phiner.de5.net.gateway.strategy;
 import static org.mockito.Mockito.*;
 
 import com.dukascopy.api.*;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -12,7 +16,7 @@ import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
-import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
+import phiner.de5.net.gateway.dto.*;
 import phiner.de5.net.gateway.config.ForexProperties;
 import phiner.de5.net.gateway.request.*;
 import phiner.de5.net.gateway.service.RedisService;
@@ -380,6 +384,71 @@ public class TradingStrategyTest {
 
           // Then - 预期特殊字符被替换为下划线
           verify(engine).submitOrder(eq("Order________"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+      }
+  }
+
+  @Test
+  public void testHandleOrdersHistoryRequest_coalescedExecution() throws Exception {
+      // 1. 设置 Mock 环境
+      ScheduledExecutorService mockScheduler = mock(ScheduledExecutorService.class);
+      ExecutorService mockExecutor = mock(ExecutorService.class);
+      IHistory mockHistory = mock(IHistory.class);
+      when(context.getHistory()).thenReturn(mockHistory);
+      
+      tradingStrategy.setSyncScheduler(mockScheduler);
+      tradingStrategy.setExecutor(mockExecutor);
+      
+      Instrument eurUsd = Instrument.EURUSD;
+      Instrument gbpUsd = Instrument.GBPUSD;
+      
+      try (MockedStatic<Instrument> mockedStatic = mockStatic(Instrument.class)) {
+          mockedStatic.when(() -> Instrument.fromString("EUR/USD")).thenReturn(eurUsd);
+          mockedStatic.when(() -> Instrument.fromString("GBP/USD")).thenReturn(gbpUsd);
+
+          // 2. 模拟连续发送三个请求 (EUR/USD, GBP/USD, EUR/USD)
+          OrdersHistoryRequest req1 = new OrdersHistoryRequest();
+          req1.setInstrument("EUR/USD");
+          req1.setStartTime(1000L);
+
+          OrdersHistoryRequest req2 = new OrdersHistoryRequest();
+          req2.setInstrument("GBP/USD");
+          req2.setStartTime(500L); // 更早的时间
+
+          OrdersHistoryRequest req3 = new OrdersHistoryRequest();
+          req3.setInstrument("EUR/USD");
+          req3.setStartTime(1200L);
+
+          tradingStrategy.handleOrdersHistoryRequest(req1);
+          tradingStrategy.handleOrdersHistoryRequest(req2);
+          tradingStrategy.handleOrdersHistoryRequest(req3);
+
+          // 3. 验证防抖逻辑
+          // 应该调用了 3 次 schedule，但最后一次会生成一个有效的 ScheduledFuture
+          ArgumentCaptor<Runnable> syncTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
+          verify(mockScheduler, times(3)).schedule(syncTaskCaptor.capture(), eq(1000L), eq(TimeUnit.MILLISECONDS));
+          
+          // 4. 手动触发防抖结束后的合并任务
+          syncTaskCaptor.getValue().run(); 
+
+          // 5. 验证执行器是否收到了合并后的批处理任务
+          ArgumentCaptor<Runnable> executionTaskCaptor = ArgumentCaptor.forClass(Runnable.class);
+          verify(mockExecutor).submit(executionTaskCaptor.capture());
+
+          // 6. 执行真实的批处理逻辑
+          executionTaskCaptor.getValue().run();
+
+          // 7. 最终验证
+          // a) 验证去重：虽然发了 3 次请求，但只会有 2 个不同品种被提取
+          verify(mockHistory).getOrdersHistory(eq(eurUsd), anyLong(), anyLong());
+          verify(mockHistory).getOrdersHistory(eq(gbpUsd), anyLong(), anyLong());
+          verify(mockHistory, times(2)).getOrdersHistory(any(), anyLong(), anyLong());
+
+          // b) 验证时间跨度：应该是所有请求中最宽的范围 (500L 到 context.getTime())
+          // 在 earlier specific verifies already covered this, but let's confirm the 'from' value
+          verify(mockHistory, times(2)).getOrdersHistory(any(), eq(500L), anyLong());
+
+          // c) 验证统一通知：只发送一次且标志位为 "ALL"
+          verify(redisService, times(1)).notifyHistoryUpdated("ALL");
       }
   }
 }

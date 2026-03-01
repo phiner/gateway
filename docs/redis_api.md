@@ -74,21 +74,25 @@
 
 #### ▶️ `order:event`
 实时发布与订单生命周期相关的事件。该数据结构直接反映了 JForex 平台的消息和订单对象。
-*   **字段说明**:
-    | 字段名 | 类型 | 描述 |
-    | :--- | :--- | :--- |
-    | `messageId`| String | 唯一订单/消息ID |
-    | `eventType`| String | 事件类型: "ORDER_SUBMIT_OK", "ORDER_FILL_OK", "ORDER_CLOSE_OK" 等 |
-    | `creationTime`| Long | 事件 Unix 时间戳 (毫秒) |
-    | `orderLabel` | String | 订单自定义标签 |
-    | `instrument`| String | 交易品种名称 |
-    | `orderState`| String | 状态: "CREATED", "OPENED", "FILLED", "CLOSED" |
-    | `orderCommand`| String | 动作: "BUY", "SELL", "BUY_LIMIT" |
-    | `amount` | Double | 数量 (手数) |
-    | `openPrice`| Double | 开仓价格 |
-    | `fillTime` | Long | 成交时间 (毫秒) |
-    | `closePrice`| Double | 平仓价格 |
-    | `closeTime` | Long | 关闭时间 (毫秒) |
+*   **字段说明** (源码: [`OrderEventDTO.java`](file:///workspaces/gateway/src/main/java/phiner/de5/net/gateway/dto/OrderEventDTO.java)):
+
+    | 字段名 | 类型 | 描述 | JForex 来源 |
+    | :--- | :--- | :--- | :--- |
+    | `messageId` | String | 唯一消息/订单 ID | `IMessage.getOrder().getId()` |
+    | `eventType` | String | 事件类型 (如 `ORDER_FILL_OK`, `ORDER_CLOSE_OK`, `ORDER_SUBMIT_REJECTED`) | `IMessage.getType().toString()` |
+    | `creationTime` | Long | 事件发生时间 (Unix 毫秒时间戳) | `IMessage.getCreationTime()` |
+    | `reason` | String | (可选) 拒单或操作失败的具体原因 | `IMessage.getReasons()` |
+    | `orderLabel` | String | 订单自定义标签 | `IOrder.getLabel()` |
+    | `instrument` | String | 交易品种名称 (如 `EUR/USD`) | `IOrder.getInstrument().name()` |
+    | `orderState` | String | 订单状态 (`CREATED`, `OPENED`, `FILLED`, `CLOSED`) | `IOrder.getState().toString()` |
+    | `orderCommand`| String | 指令类型 (`BUY`, `SELL`, `BUY_LIMIT`, `SELL_STOP` 等) | `IOrder.getOrderCommand().name()` |
+    | `amount` | double | 交易数量 (手数) | `IOrder.getAmount()` |
+    | `openPrice` | double | 开仓价格 | `IOrder.getOpenPrice()` |
+    | `stopLossPrice`| Double | (可选) 止损价格 | `IOrder.getStopLossPrice()` |
+    | `takeProfitPrice`| Double | (可选) 止盈价格 | `IOrder.getTakeProfitPrice()` |
+    | `fillTime` | Long | (可选) 成交时间 | `IOrder.getFillTime()` |
+    | `closePrice` | Double | (可选) 平仓价格 | `IOrder.getClosePrice()` |
+    | `closeTime` | Long | (可选) 平仓时间 | `IOrder.getCloseTime()` |
 
 #### ▶️ `account:status`
 同步账户资金状态。
@@ -118,7 +122,7 @@
         | :--- | :--- | :--- |
         | `orderId` | String | (必填) 订单的 `dealId` 或标签名 `label` |
         | `stopLossPrice` | Double | (可选) 新的止损价格。若为 `0` 或不传则不修改 |
-        | `takeProfitPrice` | Double | (可选) 新的止盈止损价格。若为 `0` 或不传则不修改 |
+        | `takeProfitPrice` | Double | (可选) 新的止盈价格。若为 `0` 或不传则不修改 |
         | `requestId` | String | (可选) 用于日志追踪的唯一 ID |
     - **技术说明**: 网关采用**异步顺序更新**机制。如果同时修改 SL 和 TP，网关会先发起 SL 修改，在监听到服务器确认成功后，再自动触发 TP 修改。这可以有效避免由于修改频率过快（1秒内多次）被交易所服务器拒绝的问题。
 
@@ -188,8 +192,65 @@
     - 收到 `system:request:orders_history` 请求后，从 Dukascopy 拉取并**合并**。
     - 配合 `gateway:orders:history:updated` 频道同步。
     - 这是一个增量累积的操作，旨在构建网关侧的历史数据库。
+*   **`OrderHistoryDTO` 字段说明** (源码: [`OrderHistoryDTO.java`](file:///workspaces/gateway/src/main/java/phiner/de5/net/gateway/dto/OrderHistoryDTO.java)):
+
+    | 字段名 | 类型 | 描述 | JForex 数据来源 |
+    | :--- | :--- | :--- | :--- |
+    | `dealId` | String | 唯一订单 ID | `IOrder.getId()` |
+    | `label` | String | 订单自定义标签（策略引擎设定，如 `"signal_xxx"`） | `IOrder.getLabel()` |
+    | `instrument` | String | 交易品种名称，带斜杠（如 `"EUR/USD"`） | `IOrder.getInstrument().toString()` |
+    | `direction` | String | 交易方向：`"BUY"` 或 `"SELL"` | `IOrder.isLong() ? "BUY" : "SELL"` |
+    | `amount` | double | 交易手数（单位：百万基础货币，`0.001` = 1K = 1 微型手） | `IOrder.getAmount()` |
+    | `state` | String | 订单最终状态：`"CLOSED"`, `"CANCELED"` 等 | `IOrder.getState().toString()` |
+    | `openPrice` | double | 实际成交开仓价格 | `IOrder.getOpenPrice()` |
+    | `closePrice` | double | 实际成交平仓价格（若未平仓则为 `0.0`） | `IOrder.getClosePrice()` |
+    | `creationTime` | long | 订单**创建**时间，Unix 毫秒时间戳 | `IOrder.getCreationTime()` |
+    | `fillTime` | long | 订单**成交/填充**时间，Unix 毫秒时间戳 | `IOrder.getFillTime()` |
+    | `closeTime` | long | 订单**平仓/关闭**时间，Unix 毫秒时间戳（若未关闭则为 `0`） | `IOrder.getCloseTime()` |
+    | `pips` | double | 盈亏点数（以该品种的 pip 为单位，正值为盈利，负值为亏损） | `IOrder.getProfitLossInPips()` |
+    | `profitLoss` | double | 以**账户本币**计算的盈亏金额（如 USD） | `IOrder.getProfitLossInAccountCurrency()` |
+
+    > [!NOTE]
+    > **与 `OrderEventDTO` 的关键差异**: `OrderHistoryDTO` 是针对**已完成订单**的静态快照，而 `OrderEventDTO` 是**实时事件流**。
+    > - `OrderHistoryDTO` 包含 `pips`（盈亏点数）和 `profitLoss`（账户本币盈亏），这是交易统计的核心字段。
+    > - `OrderEventDTO` 包含 `eventType`（事件类型）、`reason`（拒单原因）和 `stopLossPrice`/`takeProfitPrice`，但**不包含** `pips` 和 `profitLoss`。
+    > - 两者的 `direction`/`orderCommand` 字段名不同但含义一致。
 
 #### ⏲️ `GATEWAY_HEARTBEAT_INTERVAL` (Environment Variable)
 配置心跳与资金同步的频率。
 *   **默认值**: `15000` (15 秒)。
 *   **说明**: 仅同步资金状态，不对持仓进行定时校准（校准由手动请求或事件触发）。
+
+---
+
+## 附录 A: 交易相关 DTO 完整对比
+
+下表汇总了网关侧三个核心交易 DTO 的字段，以便客户端开发者根据使用场景选择正确的数据源。
+
+| 字段名 | `OrderHistoryDTO` | `OrderEventDTO` | `PositionDTO` | 说明 |
+| :--- | :---: | :---: | :---: | :--- |
+| `dealId` / `messageId` | ✅ `dealId` | ✅ `messageId` | ✅ `dealId` | 唯一订单ID，三个 DTO 语义一致 |
+| `label` / `orderLabel` / `dealReference` | ✅ `label` | ✅ `orderLabel` | ✅ `dealReference` | 策略自定义标签，字段名不同 |
+| `instrument` | ✅ | ✅ | ✅ | 品种名称 |
+| `direction` / `orderCommand` | ✅ `direction` | ✅ `orderCommand` | ✅ `direction` | BUY/SELL (History/Position 为简化方向, Event 为完整指令如 BUY_LIMIT) |
+| `amount` | ✅ | ✅ | ✅ | 交易手数 |
+| `state` / `orderState` | ✅ `state` | ✅ `orderState` | ❌ | 订单状态 (Position 始终为 FILLED) |
+| `openPrice` | ✅ | ✅ | ✅ | 开仓价格 |
+| `closePrice` | ✅ | ✅ | ❌ | 平仓价格 |
+| `creationTime` | ✅ | ✅ | ❌ | 创建/事件时间 |
+| `fillTime` | ✅ | ✅ | ❌ | 成交时间 |
+| `closeTime` | ✅ | ✅ | ❌ | 平仓时间 |
+| `pips` | ✅ | ❌ | ❌ | 盈亏点数 — **仅历史订单** |
+| `profitLoss` | ✅ | ❌ | ✅ | 账户本币盈亏 |
+| `stopLossPrice` | ❌ | ✅ | ✅ | 止损价格 — **仅事件和持仓** |
+| `takeProfitPrice` | ❌ | ✅ | ✅ | 止盈价格 — **仅事件和持仓** |
+| `eventType` | ❌ | ✅ | ❌ | 事件类型 — **仅实时事件** |
+| `reason` | ❌ | ✅ | ❌ | 拒单/异常原因 — **仅实时事件** |
+
+### 使用场景指引
+
+| 场景 | 推荐 DTO | 数据源 |
+| :--- | :--- | :--- |
+| **交易统计 / 绩效分析** | `OrderHistoryDTO` | `gateway:orders:history` (Hash) |
+| **实时订单监控 / 事件响应** | `OrderEventDTO` | `order:event` (Pub/Sub) |
+| **当前持仓展示 / 风险管理** | `PositionDTO` | `gateway:positions:active` (Hash) |
