@@ -246,7 +246,6 @@ public class TradingStrategy implements IStrategy {
             if (order != null && (type == IMessage.Type.ORDER_FILL_OK || 
                                   type == IMessage.Type.ORDER_CLOSE_OK || 
                                   type == IMessage.Type.ORDER_CHANGED_OK)) {
-              
               boolean skipSync = false;
               // 异步逻辑：如果 SL 修改成功且存在待处理的 TP 修改，则触发它
               if (type == IMessage.Type.ORDER_CHANGED_OK) {
