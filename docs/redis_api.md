@@ -109,7 +109,7 @@
 
 #### ▶ `system:market_status` (Channel & Key)
 发布全局市场的实时开休市状态。
-*   **负载类型**: String
+*   **负载类型**: MessagePack (Binary)
 *   **可能值**: `"OPEN"` (开市), `"CLOSED"` (周末休市), `"SETTLEMENT"` (结算禁区)
 *   **用途**: UI 端显示当前系统是否处于可交易时段。
 
