@@ -62,6 +62,25 @@
     }
     ```
 
+#### ▶️ `spread:update:{instrument}`
+发布该品种的实时点差（Spread）分段平滑均值及增长趋势。系统仅在数值发生变化时发布。
+*   **频道示例**: `spread:update:EUR/USD`
+*   **数据格式**: **JSON Object**
+*   **负载示例**:
+    ```json
+    {
+      "latestAvg": 0.00012,
+      "growthMiddle": 0.05,
+      "growthEarliest": 0.12
+    }
+    ```
+*   **字段说明**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `latestAvg` | Double | 最新 30 个样本段的点差平均值 |
+    | `growthMiddle` | Double | 最新段 vs 中间段 (30-60) 的增长率 (0.05 表示增长 5%) |
+    | `growthEarliest` | Double | 最新段 vs 最早段 (0-30) 的增长率 |
+
 #### 📈 获取K线历史数据
 网关将每个品种和周期的 K 线存储在一个 **Redis List** 中。
 *   **Key 格式**: `kline:{instrument}:{period}`
@@ -94,10 +113,16 @@
 同步账户资金状态。
 *   **字段**: `balance` (余额), `equity` (净值), `baseEquity` (结算价值), `margin` (已用保证金), `unrealizedPL` (未实现盈亏)。
 
-#### ▶️ `gateway:status` / `gateway:error`
+#### ▶ `gateway:status` / `gateway:error`
 网关连接状态与错误消息广播。
 
-#### ▶️ `gateway:positions:updated`
+#### ▶ `system:market_status` (Channel & Key)
+发布全局市场的实时开休市状态。
+*   **负载类型**: String
+*   **可能值**: `"OPEN"` (开市), `"CLOSED"` (周末休市), `"SETTLEMENT"` (结算禁区)
+*   **用途**: UI 端显示当前系统是否处于可交易时段。
+
+#### ▶ `gateway:positions:updated`
 每当活跃持仓的 Redis Hash (`gateway:positions:active`) 被全量刷新后，网关会向此频道发送一个通知。
 *   **负载**: 当前 Unix 时间戳 (毫秒字符串)。
 *   **用途**: 客户端监听到该信号后，应从 Hash 中重新拉取最新持仓。
@@ -170,7 +195,7 @@
 
 ---
 
-## 5. 运行时交易状态 (Runtime Trading State)
+## 6. 运行时交易状态 (Runtime Trading State)
 
 这些 Key 存储了引擎运行时的动态状态，供监控与 UI 界面使用。
 
@@ -187,16 +212,49 @@
 *   **内容**: `SignalIntent` 对象。
 *   **限制**: 保留最新的 1000 条记录。
 
+#### 🛡️ `state:intercept:{instrument}:{period}` (Binary)
+存储最近一次该品种周期的信号拦截记录。
+*   **数据格式**: **MessagePack (Binary)**
+*   **负载字段**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `time` | Long | 拦截的时间戳 |
+    | `instrument` | String | 交易品种 |
+    | `resolution` | String | K 线周期 |
+    | `action` | String | 原本意图操作 (BUY/SELL) |
+    | `reason` | String | 详细拦截原因（包含拦截器名称） |
+*   **用途**: 当策略信号没有如期下单时，UI 可查看此键值获取拦截详情。
+
 #### ⚙️ `state:indicator:{instrument}:{period}` (Binary)
 存储最近一次计算的指标结果（ATR等）。
 
 #### 🧬 `state:features:{instrument}:{period}` (Binary)
-存储最近一次特征化产生的特征矩阵（FeatureMatrix），供 UI 展示。
+存储最近一次特征化产生的特征矩阵（FeatureMatrix），仅保留**最新的 7 行**数据供 UI 绘图展示。
+*   **数据格式**: **MessagePack (Binary)**
+*   **解析说明**: 反序列化后为一个包含 `windows` 列表的对象。每个子窗口（W=7/21等）包含 `data` 数组（7 行）。
+*   **FeatureRow 结构 (Array[5])**: `[r, m, p, b, signVal]`
+    - `r`: 价格动量 `(Close_t - Close_{t-1}) / ATR7`
+    - `m`: K线重心 `[2 * ((Close - Low) / (High - Low)) - 1]`
+    - `p`: 空间位置 `[2 * ((MidPoint - GMin) / (GRange)) - 1]`
+    - `b`: 实体比例 `(Close - Open) / (High - Low)`
+    - `signVal`: 策略信号强度 `[-1.0, 1.0]`
 
 #### 📋 `gateway:positions:active` (Hash)
 存储当前系统中所有处于 `FILLED` 状态的活跃持仓全量快照。
 *   **Field**: `dealId` (唯一订单ID)
 *   **Value**: `PositionDTO` 对象 (MessagePack 序列化)
+*   **字段说明**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `dealId` | String | 唯一订单 ID |
+    | `dealReference` | String | 自定义订单标签/追踪引用号 |
+    | `instrument` | String | 交易品种 |
+    | `direction` | String | 持仓方向 (BUY/SELL) |
+    | `amount` | Double | 交易量/手数 (禁止使用 size) |
+    | `openPrice` | Double | 入场价格 |
+    | `profitLoss` | Double | 实时盈亏 |
+    | `stopLossPrice` | Double | 止损价格 |
+    | `takeProfitPrice` | Double | 止盈价格 |
 *   **更新机制**: 
     - 订单状态变更（成交、平仓、修改 SL/TP）时触发**全量刷新**。
     - 收到 `system:request:positions` 请求后触发**全量刷新**。
