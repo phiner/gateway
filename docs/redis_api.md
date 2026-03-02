@@ -65,21 +65,12 @@
 #### ▶️ `spread:update:{instrument}`
 发布该品种的实时点差（Spread）分段平滑均值及增长趋势。系统仅在数值发生变化时发布。
 *   **频道示例**: `spread:update:EUR/USD`
-*   **数据格式**: **JSON Object**
-*   **负载示例**:
-    ```json
-    {
-      "latestAvg": 0.00012,
-      "growthMiddle": 0.05,
-      "growthEarliest": 0.12
-    }
-    ```
+*   **数据格式**: **MessagePack (Binary)**
 *   **字段说明**:
     | 字段名 | 类型 | 描述 |
     | :--- | :--- | :--- |
-    | `latestAvg` | Double | 最新 30 个样本段的点差平均值 |
-    | `growthMiddle` | Double | 最新段 vs 中间段 (30-60) 的增长率 (0.05 表示增长 5%) |
-    | `growthEarliest` | Double | 最新段 vs 最早段 (0-30) 的增长率 |
+    | `latestAvg` | Double | 最近 30 个样本段的点差平均值 (单位: Pips) |
+    | `windowAvg` | Double | 整个滑动窗口 (约 90 个样本) 的总点差平均值 (单位: Pips) |
 
 #### 📈 获取K线历史数据
 网关将每个品种和周期的 K 线存储在一个 **Redis List** 中。
