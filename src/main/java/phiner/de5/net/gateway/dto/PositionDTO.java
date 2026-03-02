@@ -19,6 +19,7 @@ public class PositionDTO {
     private double stopLossPrice;
     private double takeProfitPrice;
     private double profitLoss;
+    private double commission;
 
     public PositionDTO(IOrder order) throws JFException {
         this.dealId = order.getId();
@@ -30,5 +31,6 @@ public class PositionDTO {
         this.stopLossPrice = order.getStopLossPrice();
         this.takeProfitPrice = order.getTakeProfitPrice();
         this.profitLoss = order.getProfitLossInAccountCurrency();
+        this.commission = order.getCommission();
     }
 }

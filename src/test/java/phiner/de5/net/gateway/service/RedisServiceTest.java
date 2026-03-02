@@ -274,7 +274,7 @@ public class RedisServiceTest {
 
     @Test
     public void testRefreshPositionsHash_Success() {
-        PositionDTO pos = new PositionDTO("deal1", "ref1", "EUR/USD", "BUY", 0.1, 1.1, 1.0, 1.2, 10.0);
+        PositionDTO pos = new PositionDTO("deal1", "ref1", "EUR/USD", "BUY", 0.1, 1.1, 1.0, 1.2, 10.0, 1.5);
         List<PositionDTO> positions = List.of(pos);
         byte[] posData = "mocked-pos-data".getBytes();
         String hashKey = "gateway:positions:active";

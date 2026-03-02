@@ -32,6 +32,7 @@ public class PositionDTOTest {
         when(order.getStopLossPrice()).thenReturn(1.0800);
         when(order.getTakeProfitPrice()).thenReturn(1.0900);
         when(order.getProfitLossInAccountCurrency()).thenReturn(15.5);
+        when(order.getCommission()).thenReturn(1.23);
 
         PositionDTO dto = new PositionDTO(order);
 
@@ -44,5 +45,6 @@ public class PositionDTOTest {
         assertEquals(1.0800, dto.getStopLossPrice());
         assertEquals(1.0900, dto.getTakeProfitPrice());
         assertEquals(15.5, dto.getProfitLoss());
+        assertEquals(1.23, dto.getCommission());
     }
 }
