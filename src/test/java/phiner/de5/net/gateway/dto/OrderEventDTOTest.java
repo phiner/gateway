@@ -42,6 +42,7 @@ public class OrderEventDTOTest {
         when(order.getFillTime()).thenReturn(987654321L);
         when(order.getClosePrice()).thenReturn(1.3);
         when(order.getCloseTime()).thenReturn(111222333L);
+        when(order.getCommission()).thenReturn(2.5);
     }
 
     @Test
@@ -63,5 +64,6 @@ public class OrderEventDTOTest {
         assertEquals(987654321L, dto.getFillTime());
         assertEquals(1.3, dto.getClosePrice());
         assertEquals(111222333L, dto.getCloseTime());
+        assertEquals(2.5, dto.getCommission());
     }
 }

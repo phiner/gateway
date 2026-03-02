@@ -33,6 +33,7 @@ public class OrderEventDTO implements Serializable {
     private final Long fillTime;
     private final Double closePrice;
     private final Long closeTime;
+    private final double commission;
 
     public OrderEventDTO(IMessage message) {
         IOrder order = message.getOrder();
@@ -68,6 +69,7 @@ public class OrderEventDTO implements Serializable {
             this.fillTime = order.getFillTime();
             this.closePrice = order.getClosePrice();
             this.closeTime = order.getCloseTime();
+            this.commission = order.getCommission();
         } else {
             this.orderLabel = null;
             this.instrument = null;
@@ -80,6 +82,7 @@ public class OrderEventDTO implements Serializable {
             this.fillTime = null;
             this.closePrice = null;
             this.closeTime = null;
+            this.commission = 0.0;
         }
     }
 
@@ -145,6 +148,10 @@ public class OrderEventDTO implements Serializable {
         return closeTime;
     }
 
+    public double getCommission() {
+        return commission;
+    }
+
     @Override
     public String toString() {
         return "OrderEventDTO{" +
@@ -163,6 +170,7 @@ public class OrderEventDTO implements Serializable {
                 ", fillTime=" + fillTime +
                 ", closePrice=" + closePrice +
                 ", closeTime=" + closeTime +
+                ", commission=" + commission +
                 '}';
     }
 }

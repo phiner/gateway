@@ -23,6 +23,9 @@ public class OrderHistoryDTO {
     private long closeTime;
     private double pips;
     private double profitLoss;
+    private double commission;
+    private double stopLossPrice;
+    private double takeProfitPrice;
 
     public OrderHistoryDTO(IOrder order) throws JFException {
         this.dealId = order.getId();
@@ -38,5 +41,8 @@ public class OrderHistoryDTO {
         this.closeTime = order.getCloseTime();
         this.pips = order.getProfitLossInPips();
         this.profitLoss = order.getProfitLossInAccountCurrency();
+        this.commission = order.getCommission();
+        this.stopLossPrice = order.getStopLossPrice();
+        this.takeProfitPrice = order.getTakeProfitPrice();
     }
 }

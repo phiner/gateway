@@ -99,6 +99,7 @@
     | `fillTime` | Long | 成交时间 (毫秒) |
     | `closePrice`| Double | 平仓价格 |
     | `closeTime` | Long | 关闭时间 (毫秒) |
+    | `commission`| Double | 佣金 (原始数据) |
 
 #### ▶️ `account:status`
 同步账户资金状态。
@@ -213,7 +214,8 @@
     | `instrument` | String | 交易品种 |
     | `resolution` | String | K 线周期 |
     | `action` | String | 原本意图操作 (BUY/SELL) |
-    | `reason` | String | 详细拦截原因（包含拦截器名称） |
+    | `interceptor` | String | 触发拦截的拦截器名称 |
+    | `reason` | String | 详细拦截原因 |
 *   **用途**: 当策略信号没有如期下单时，UI 可查看此键值获取拦截详情。
 
 #### ⚙️ `state:indicator:{instrument}:{period}` (Binary)
@@ -244,6 +246,7 @@
     | `amount` | Double | 交易量/手数 (禁止使用 size) |
     | `openPrice` | Double | 入场价格 |
     | `profitLoss` | Double | 实时盈亏 |
+    | `commission` | Double | 佣金 (原始数据) |
     | `stopLossPrice` | Double | 止损价格 |
     | `takeProfitPrice` | Double | 止盈价格 |
 *   **更新机制**: 
@@ -256,6 +259,25 @@
 存储网关获取到的已完成订单（CLOSED/CANCELLED）的累积历史库。
 *   **Field**: `dealId` (唯一订单ID)
 *   **Value**: `OrderHistoryDTO` 对象 (MessagePack 序列化)
+*   **字段说明**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `dealId` | String | 唯一订单 ID |
+    | `dealReference` | String | 自定义订单标签 |
+    | `instrument` | String | 交易品种 |
+    | `direction` | String | 方向 (BUY/SELL) |
+    | `amount` | Double | 成交量 |
+    | `openPrice` | Double | 开仓价格 |
+    | `closePrice` | Double | 平仓价格 |
+    | `profitLoss` | Double | 已实现盈亏 |
+    | `commission` | Double | 佣金 (原始数据) |
+    | `stopLossPrice` | Double | 止损价格 |
+    | `takeProfitPrice` | Double | 止盈价格 |
+    | `pips` | Double | 盈亏点数 |
+    | `state` | String | 订单状态 |
+    | `creationTime` | Long | 创建时间 (毫秒) |
+    | `fillTime` | Long | 成交时间 (毫秒) |
+    | `closeTime` | Long | 平仓时间 (毫秒) |
 *   **更新机制**: 
     - 收到 `system:request:orders_history` 请求后，从 Dukascopy 拉取并**合并**。
     - 配合 `gateway:orders:history:updated` 频道同步。
