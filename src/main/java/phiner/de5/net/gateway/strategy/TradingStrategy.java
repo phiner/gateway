@@ -251,19 +251,25 @@ public class TradingStrategy implements IStrategy {
                                   type == IMessage.Type.ORDER_CLOSE_OK || 
                                   type == IMessage.Type.ORDER_CHANGED_OK)) {
               boolean skipSync = false;
-              // 异步逻辑：如果 SL 修改成功且存在待处理的 TP 修改，则触发它
-              if (type == IMessage.Type.ORDER_CHANGED_OK) {
-                  Double targetTP = pendingTakeProfits.remove(order.getId());
-                  if (targetTP != null) {
-                      log.info("SL modification confirmed for {}, now applying pending TP: {}", order.getLabel(), targetTP);
-                      try {
-                          order.setTakeProfitPrice(targetTP);
-                          skipSync = true; // 状态感知：知道马上还要发生下一次修改，故跳过本次同步
-                      } catch (Exception e) {
-                          log.error("Failed to apply pending TP for order {}: {}", order.getLabel(), e.getMessage());
-                      }
-                  }
-              }
+              // 异步逻辑：如果 SL 修改成功且存在待处理的 TP 修改，则通过策略线程触发它
+               if (type == IMessage.Type.ORDER_CHANGED_OK) {
+                   Double targetTP = pendingTakeProfits.remove(order.getId());
+                   if (targetTP != null) {
+                       log.info("SL modification confirmed for {}, now applying pending TP: {}", order.getLabel(), targetTP);
+                       // 必须通过 context.executeTask 将 TP 修改提交到 JForex 策略线程执行，
+                       // 直接在 eventProcessor 线程中调用 order.setTakeProfitPrice 会抛出 "Incorrect thread" 错误。
+                       context.executeTask(() -> {
+                           try {
+                               order.setTakeProfitPrice(targetTP);
+                               log.info("Successfully applied pending TP {} for order {}", targetTP, order.getLabel());
+                           } catch (Exception e) {
+                               log.error("Failed to apply pending TP for order {}: {}", order.getLabel(), e.getMessage());
+                           }
+                           return null;
+                       });
+                       skipSync = true; // 状态感知：TP 修改的 ORDER_CHANGED_OK 事件到来时会再次触发同步
+                   }
+               }
 
               if (!skipSync) {
                   log.info("Order event {} for {}, scheduling debounced position sync", type, order.getLabel());

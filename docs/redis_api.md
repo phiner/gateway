@@ -221,8 +221,9 @@
 #### ⚙️ `state:indicator:{instrument}:{period}` (Binary)
 存储最近一次计算的指标结果（ATR等）。
 
-#### 🧬 `state:features:{instrument}:{period}` (Binary)
-存储最近一次特征化产生的特征矩阵（FeatureMatrix），仅保留**最新的 7 行**数据供 UI 绘图展示。
+#### 🧬 `state:features:{instrument}:{period}` (Channel & Key)
+存储最近一次特征化产生的特征矩阵（FeatureMatrix），用于 UI 实时绘图展示。
+*   **更新机制**: 引擎在每根 K 线闭合且计算完特征后，会先 `SET` 该键，随后立即向同名频道广播相同的二进制负载。
 *   **数据格式**: **MessagePack (Binary)**
 *   **解析说明**: 反序列化后为一个包含 `windows` 列表的对象。每个子窗口（W=7/21等）包含 `data` 数组（7 行）。
 *   **FeatureRow 结构 (Array[5])**: `[r, m, p, b, signVal]`
