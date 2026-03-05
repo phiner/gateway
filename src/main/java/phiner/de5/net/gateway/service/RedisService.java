@@ -38,6 +38,7 @@ public class RedisService {
   private static final String POSITIONS_UPDATED_CHANNEL = "gateway:positions:updated";
   private static final String HISTORY_HASH_KEY = "gateway:orders:history";
   private static final String HISTORY_UPDATED_CHANNEL = "gateway:orders:history:updated";
+  private static final String HISTORY_COVERAGE_HASH_KEY = "gateway:history:coverage";
 
   private final RedisTemplate<String, byte[]> redisTemplateBytes;
   private final RedisTemplate<String, String> redisTemplateString;
@@ -306,6 +307,41 @@ public class RedisService {
             redisTemplateString.convertAndSend(HISTORY_UPDATED_CHANNEL, instrument);
         } catch (Exception e) {
             log.warn("Failed to send history updated notification: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 获取指定品种的历史记录覆盖范围 [min, max]
+     */
+    public long[] getHistoryCoverage(@NonNull String instrument) {
+        try {
+            Object data = redisTemplateBytes.opsForHash().get(HISTORY_COVERAGE_HASH_KEY, instrument);
+            if (data instanceof byte[]) {
+                String s = new String((byte[]) data);
+                String[] parts = s.split(",");
+                if (parts.length == 2) {
+                    return new long[]{Long.parseLong(parts[0]), Long.parseLong(parts[1])};
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get history coverage for {}: {}", instrument, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 更新指定品种的历史记录覆盖范围
+     */
+    public void updateHistoryCoverage(@NonNull String instrument, long min, long max) {
+        try {
+            long[] current = getHistoryCoverage(instrument);
+            long newMin = (current == null) ? min : Math.min(current[0], min);
+            long newMax = (current == null) ? max : Math.max(current[1], max);
+            
+            String val = newMin + "," + newMax;
+            redisTemplateBytes.opsForHash().put(HISTORY_COVERAGE_HASH_KEY, instrument, val.getBytes());
+        } catch (Exception e) {
+            log.error("Failed to update history coverage for {}: {}", instrument, e.getMessage());
         }
     }
 }
