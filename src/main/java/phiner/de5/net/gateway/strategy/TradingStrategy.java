@@ -43,6 +43,7 @@ public class TradingStrategy implements IStrategy {
   private final Set<Instrument> subscribedInstruments = ConcurrentHashMap.newKeySet();
   private final Map<String, Double> pendingTakeProfits = new ConcurrentHashMap<>();
   private final Set<Instrument> pendingHistorySyncs = ConcurrentHashMap.newKeySet();
+  private final Map<String, long[]> historyCoverageCache = new ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong historySyncStartTime = new java.util.concurrent.atomic.AtomicLong(Long.MAX_VALUE);
   private final java.util.concurrent.atomic.AtomicLong historySyncEndTime = new java.util.concurrent.atomic.AtomicLong(0);
   private final Set<Period> configuredPeriods = new HashSet<>();
@@ -695,9 +696,17 @@ public class TradingStrategy implements IStrategy {
                               }
                           }
                           redisService.updateHistoryHash(dtos);
+                          // 成功后更新 Redis 和本地内存缓存
+                          long[] newRange = new long[]{finalFrom, finalTo};
+                          historyCoverageCache.put(instrument.toString(), newRange);
+                          redisService.updateHistoryCoverage(instrument.toString(), finalFrom, finalTo);
                           log.info("Successfully extracted {} historical orders for {}", dtos.size(), instrument);
                       } else {
                           log.info("No historical orders found for {} in target range", instrument);
+                          // 即使没有订单，也认为这段时间已经扫描过了，更新内存和 Redis
+                          long[] newRange = new long[]{finalFrom, finalTo};
+                          historyCoverageCache.put(instrument.toString(), newRange);
+                          redisService.updateHistoryCoverage(instrument.toString(), finalFrom, finalTo);
                       }
                   } catch (Exception e) {
                       log.error("Failed to extract history for {}: {}", instrument, e.getMessage());
@@ -751,14 +760,57 @@ public class TradingStrategy implements IStrategy {
 
     try {
         Instrument instrument = Instrument.fromString(instrumentName);
-        long from = request.getStartTime();
-        long to = request.getEndTime() > 0 ? request.getEndTime() : context.getTime();
+        long requestedStart = request.getStartTime();
+        long now = context.getTime();
+        long requestedEnd = request.getEndTime() > 0 ? request.getEndTime() : now;
 
-        // 不再立即执行同步，而是进入防抖合并队列
-        scheduleDebouncedHistorySync(instrument, from, to);
+        // 1. 优先从内存缓存获取，如果不存在则从 Redis 回源
+        long[] coverage = historyCoverageCache.computeIfAbsent(instrumentName, k -> {
+            long[] fromRedis = redisService.getHistoryCoverage(k);
+            if (fromRedis != null) {
+                log.info("Populated history coverage cache from Redis for {}: [{}, {}]", k, fromRedis[0], fromRedis[1]);
+            }
+            return fromRedis;
+        });
+        
+        long effectiveFrom;
+        long effectiveTo = requestedEnd;
+
+        if (coverage == null) {
+            // 从未同步过，直接请求全量
+            effectiveFrom = requestedStart;
+            log.info("No history coverage for {}, fetching full range: [{}, {}]", instrumentName, effectiveFrom, effectiveTo);
+        } else {
+            long cachedMin = coverage[0];
+            long cachedMax = coverage[1];
+
+            if (requestedStart < cachedMin) {
+                // 1. 如果请求的开始时间比缓存的最早时间还要早，我们需要补齐 [requestedStart, now]
+                // 这里为了简单，直接从请求的最早时间拉取到最新，利用 Redis Hash 自动去重
+                effectiveFrom = requestedStart;
+                log.info("Extending history past for {}: requested {} < cached {}, fetching [{}, {}]", 
+                         instrumentName, requestedStart, cachedMin, effectiveFrom, effectiveTo);
+            } else {
+                // 2. 如果请求的起始时间已在缓存范围内，我们只需要做增量更新 [cachedMax, now]
+                // 或者是检查是否需要更新到请求的 endTime
+                effectiveFrom = cachedMax;
+                if (effectiveTo <= cachedMax) {
+                    log.info("Requested history range for {} [{}, {}] is already fully cached [{}, {}].", 
+                             instrumentName, requestedStart, requestedEnd, cachedMin, cachedMax);
+                    // 即使不请求 API，也触发一次通知，确保客户端知道可以从缓存读了
+                    redisService.notifyHistoryUpdated(instrumentName);
+                    return;
+                }
+                log.info("Incremental history sync for {}: fetching from cachedMax {} to {}", 
+                         instrumentName, cachedMax, effectiveTo);
+            }
+        }
+
+        // 进入防抖合并队列
+        scheduleDebouncedHistorySync(instrument, effectiveFrom, effectiveTo);
         
     } catch (Exception e) {
-        log.error("Invalid instrument in history request: {}", instrumentName);
+        log.error("Invalid instrument in history request: {}", instrumentName, e);
     }
   }
 }

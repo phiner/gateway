@@ -194,7 +194,25 @@
 #### 📊 `trades:active` (Hash)
 存储当前系统中所有处于活跃状态（持仓中或挂单中）的交易信号快照。
 *   **Field**: `deal_reference` (唯一交易号)
-*   **Value**: `SignalIntent` 对象 (包含入场详情、信心值等)
+*   **Value**: `SignalIntent` 对象
+*   **SignalIntent 字段说明**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `epic` | String | 交易品种 |
+    | `resolution` | String | K 线周期 |
+    | `action` | String | 买卖方向 (BUY/SELL) |
+    | `signVal` | Double | **聚合信号值** [-1.0, 1.0] (来自 CompositeStrategy) |
+    | `pivotSignal` | Double? | (可选) **PivotSniper 原始信号值** [-1.0, 1.0] |
+    | `confidence` | Double | 策略信心值 [0.0, 1.0] |
+    | `time` | Long | 信号生成时间戳 |
+    | `price` | Double | 信号生成时的收盘价/触发价 |
+    | `high` | Double | 信号 K 线最高价 |
+    | `low` | Double | 信号 K 线最低价 |
+    | `atr` | Double | 波动率参考值 (ATR) |
+    | `scale` | Integer | 计算周期窗口 (如 7, 21) |
+    | `pValue` | Double | 空间位置分量 (p-value) |
+    | `dealReference`| String | 唯一成交引用标签 |
+    | `resonanceMultiplier` | Double | 共振乘数 (1.0 或 2.0) |
 *   **生命周期**:
     -   **创建**: 下单并发往网关时写入。
     -   **清理**: 监听到 `ORDER_CLOSE_OK`（平仓成功）事件后自动删除。
@@ -204,8 +222,10 @@
 *   **内容**: `SignalIntent` 对象。
 *   **限制**: 保留最新的 1000 条记录。
 
-#### 🛡️ `state:intercept:{instrument}:{period}` (Binary)
-存储最近一次该品种周期的信号拦截记录。
+#### 🛡️ `state:intercept:{instrument}:{period}` (Channel & Key)
+存储该品种周期的信号拦截记录历史。
+*   **更新机制**: 引擎在生成拦截记录后，会执行 `LPUSH` + `LTRIM` 操作，保留最新的 **10 条** 历史记录。随后立即向同名频道 `PUBLISH` 相同的二进制负载。
+*   **读取方式**: 客户端可通过 `LRANGE {key} 0 9` 获取历史，或订阅同名频道获取实时更新。
 *   **数据格式**: **MessagePack (Binary)**
 *   **负载字段**:
     | 字段名 | 类型 | 描述 |
@@ -231,7 +251,7 @@
     - `m`: K线重心 `[2 * ((Close - Low) / (High - Low)) - 1]`
     - `p`: 空间位置 `[2 * ((MidPoint - GMin) / (GRange)) - 1]`
     - `b`: 实体比例 `(Close - Open) / (High - Low)`
-    - `signVal`: 策略信号强度 `[-1.0, 1.0]`
+    - `signVal`: **聚合策略信号强度** `[-1.0, 1.0]` (对应 `SignalIntent.signVal`)
 
 #### 📋 `gateway:positions:active` (Hash)
 存储当前系统中所有处于 `FILLED` 状态的活跃持仓全量快照。
