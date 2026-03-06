@@ -93,11 +93,16 @@ public class TradingStrategy implements IStrategy {
             .map(String::trim)
             .map(name -> {
               try {
-                Instrument inst = Instrument.fromString(name);
-                log.info("已将字符串 '{}' 转换为产品: {}", name, inst);
+                Instrument inst = parseInstrument(name);
+                if (inst != null) {
+                  log.info("已将字符串 '{}' 转换为产品: {}", name, inst);
+                } else {
+                  log.error("无法将 '{}' 转换为有效的产品", name);
+                  redisService.publishError("配置中的交易产品名称无效: " + name);
+                }
                 return inst;
               } catch (Exception e) {
-                log.error("无法将 '{}' 转换为产品", name, e);
+                log.error("解析产品 '{}' 时发生异常", name, e);
                 redisService.publishError("配置中的交易产品名称无效: " + name);
                 return null;
               }
@@ -374,7 +379,12 @@ public class TradingStrategy implements IStrategy {
 
   public void executeMarketOrder(OpenMarketOrderRequest request) {
         runTask(() -> {
-        Instrument instrument = Instrument.fromString(request.getInstrument());
+        Instrument instrument = parseInstrument(request.getInstrument());
+        if (instrument == null) {
+            log.error("Invalid instrument in market order request: {}", request.getInstrument());
+            redisService.publishError("Invalid instrument: " + request.getInstrument());
+            return null;
+        }
         IEngine.OrderCommand command = (request.getOrderType() == MarketOrderType.BUY) ? IEngine.OrderCommand.BUY : IEngine.OrderCommand.SELL;
         double amount = request.getAmount() != null ? request.getAmount() : 0.0;
         String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
@@ -407,7 +417,12 @@ public class TradingStrategy implements IStrategy {
 
     public void submitOrder(SubmitOrderRequest request) {
         runTask(() -> {
-            Instrument instrument = Instrument.fromString(request.getInstrument());
+            Instrument instrument = parseInstrument(request.getInstrument());
+            if (instrument == null) {
+                log.error("Invalid instrument in order request: {}", request.getInstrument());
+                redisService.publishError("Invalid instrument: " + request.getInstrument());
+                return null;
+            }
             IEngine.OrderCommand command = IEngine.OrderCommand.valueOf(request.getOrderCommand());
             String finalLabel = sanitizeLabel((request.getLabel() != null && !request.getLabel().isEmpty()) ? request.getLabel() : getNewLabel());
 
@@ -473,8 +488,9 @@ public class TradingStrategy implements IStrategy {
             String instrumentName = request.getInstrument();
             String requestId = request.getRequestId();
 
-            Instrument instrument = Instrument.fromString(instrumentName);
+            Instrument instrument = parseInstrument(instrumentName);
             if (instrument == null) {
+                log.error("Instrument info request failed: instrument not found for {}", instrumentName);
                 redisService.publishError("Instrument not found: " + instrumentName);
                 return null;
             }
@@ -588,6 +604,27 @@ public class TradingStrategy implements IStrategy {
       }
       
       return sanitized;
+  }
+
+  /**
+   * 鲁棒的 Instrument 解析方法，支持处理没有斜杠的产品名（如 USDJPY -> USD/JPY）
+   */
+  private Instrument parseInstrument(String instrumentName) {
+      if (instrumentName == null || instrumentName.isEmpty()) {
+          return null;
+      }
+      // 1. 尝试直接解析
+      Instrument instrument = Instrument.fromString(instrumentName);
+      
+      // 2. 如果失败且格式为 6 位字母，尝试插入斜杠
+      if (instrument == null && instrumentName.length() == 6 && !instrumentName.contains("/")) {
+          String normalized = instrumentName.substring(0, 3) + "/" + instrumentName.substring(3);
+          instrument = Instrument.fromString(normalized);
+          if (instrument != null) {
+              log.info("Normalized instrument name from '{}' to '{}'", instrumentName, normalized);
+          }
+      }
+      return instrument;
   }
 
   public Set<Instrument> getSubscribedInstruments() {
@@ -758,8 +795,14 @@ public class TradingStrategy implements IStrategy {
         return;
     }
 
+    Instrument instrument = parseInstrument(instrumentName);
+    if (instrument == null) {
+        log.error("Invalid instrument in history request: {}", instrumentName);
+        redisService.publishError("Invalid instrument: " + instrumentName);
+        return;
+    }
+
     try {
-        Instrument instrument = Instrument.fromString(instrumentName);
         long requestedStart = request.getStartTime();
         long now = context.getTime();
         long requestedEnd = request.getEndTime() > 0 ? request.getEndTime() : now;
