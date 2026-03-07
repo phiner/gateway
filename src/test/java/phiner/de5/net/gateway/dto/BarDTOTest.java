@@ -22,6 +22,7 @@ public class BarDTOTest {
         when(iBar.getClose()).thenReturn(1.2);
         when(iBar.getLow()).thenReturn(1.0);
         when(iBar.getHigh()).thenReturn(1.3);
+        when(iBar.getVolume()).thenReturn(1234.5);
     }
 
     @Test
@@ -38,5 +39,6 @@ public class BarDTOTest {
         assertEquals(1.2, barDTO.getClose());
         assertEquals(1.0, barDTO.getLow());
         assertEquals(1.3, barDTO.getHigh());
+        assertEquals(1234.5, barDTO.getVolume());
     }
 }
