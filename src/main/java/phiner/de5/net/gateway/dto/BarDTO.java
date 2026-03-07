@@ -10,6 +10,7 @@ public class BarDTO {
     private final double close;
     private final double low;
     private final double high;
+    private final double volume;
 
     public BarDTO(String instrument, String period, IBar bar) {
         this.instrument = instrument;
@@ -19,6 +20,7 @@ public class BarDTO {
         this.close = bar.getClose();
         this.low = bar.getLow();
         this.high = bar.getHigh();
+        this.volume = bar.getVolume();
     }
 
     private String formatPeriod(String period) {
@@ -40,4 +42,5 @@ public class BarDTO {
     public double getClose() { return close; }
     public double getLow() { return low; }
     public double getHigh() { return high; }
+    public double getVolume() { return volume; }
 }
