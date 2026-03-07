@@ -58,9 +58,21 @@
       "open": 1.07499,
       "close": 1.07509,
       "low": 1.07489,
-      "high": 1.07519
+      "high": 1.07519,
+      "volume": 12.5
     }
     ```
+*   **字段说明**:
+    | 字段名 | 类型 | 描述 |
+    | :--- | :--- | :--- |
+    | `instrument` | String | 交易品种名称 |
+    | `period` | String | K线周期 |
+    | `time` | Long | Unix 时间戳 (毫秒) |
+    | `open` | Double | 开盘价 |
+    | `close` | Double | 收盘价 |
+    | `low` | Double | 最低价 |
+    | `high` | Double | 最高价 |
+    | `volume` | Double | 成交量 |
 
 #### ▶️ `spread:update:{instrument}`
 发布该品种的实时点差（Spread）分段平滑均值及增长趋势。系统仅在数值发生变化时发布。

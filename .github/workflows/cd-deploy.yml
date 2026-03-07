@@ -31,9 +31,30 @@ jobs:
             -Djib.to.auth.username=${{ github.actor }} \
             -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }}
 
-      - name: Delete old image versions
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: ${{ github.event.repository.name }}
-          package-type: 'container'
-          min-versions-to-keep: 4
+      - name: Delete untagged package versions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PKG_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo "开始清理没有标签的镜像..."
+          
+          # 获取所有版本及标签信息
+          versions=$(gh api -H "Accept: application/vnd.github+json" \
+            /user/packages/container/$PKG_NAME/versions --paginate \
+            --jq '.[] | {id: .id, tags: .metadata.container.tags}')
+            
+          echo "$versions" | jq -c '.' | while read -r version; do
+            id=$(echo $version | jq -r '.id')
+            tags=$(echo $version | jq -r '.tags[] // empty')
+            
+            # 逻辑：如果没有标签，或者标签列表中不包含任何版本标签(v开头的)，则删除
+            # 这里保留 latest, v2-latest 以及任何 v1.0, v2.1 等版本标签
+            if [ -z "$tags" ]; then
+              echo "发现无标签镜像 $id，正在删除..."
+              gh api -X DELETE -H "Accept: application/vnd.github+json" \
+                /user/packages/container/$PKG_NAME/versions/$id
+            else
+              echo "镜像 $id 拥有标签: $tags，保留。"
+            fi
+          done 
