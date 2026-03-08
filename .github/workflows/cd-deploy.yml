@@ -32,30 +32,56 @@ jobs:
             -Djib.to.auth.password=${{ secrets.GITHUB_TOKEN }} \
             -Djib.serialize=true
 
-      - name: Delete untagged package versions
+      - name: Delete old untagged package versions
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PKG_NAME: ${{ github.event.repository.name }}
         run: |
-          echo "开始清理没有标签的镜像..."
+          echo "开始安全清理:删除1天前且无标签的镜像,保留最近1个..."
           
-          # 获取所有版本及标签信息
-          versions=$(gh api -H "Accept: application/vnd.github+json" \
+          # 获取当前时间的秒数 (Linux 环境)
+          now=$(date +%s)
+          one_day_seconds=86400
+
+          # 获取所有版本列表，按时间倒序排列
+          all_versions=$(gh api -H "Accept: application/vnd.github+json" \
             /user/packages/container/$PKG_NAME/versions --paginate \
-            --jq '.[] | {id: .id, tags: .metadata.container.tags}')
-            
-          echo "$versions" | jq -c '.' | while read -r version; do
+            --jq '.[] | {id: .id, tags: .metadata.container.tags, created_at: .created_at}')
+
+          # 1. 获取最近 1 个版本的 ID
+          latest_id=$(echo "$all_versions" | jq -r '.id' | head -n 1)
+          echo "强制保留最近的 1 个版本 ID: $latest_id"
+
+          echo "$all_versions" | jq -c '.' | while read -r version; do
             id=$(echo $version | jq -r '.id')
             tags=$(echo $version | jq -r '.tags[] // empty')
+            created_at=$(echo $version | jq -r '.created_at')
             
-            # 逻辑：如果没有标签，或者标签列表中不包含任何版本标签(v开头的)，则删除
-            # 这里保留 latest, v2-latest 以及任何 v1.0, v2.1 等版本标签
-            if [ -z "$tags" ]; then
-              echo "发现无标签镜像 $id，正在删除..."
+            # 转换创建时间为秒数
+            # 注意：ubuntu 环境下 date -d 可以处理 ISO 格式
+            created_s=$(date -d "$created_at" +%s)
+            diff_seconds=$((now - created_s))
+
+            # 逻辑判断：
+            # 1. 如果是最近的第1个，绝对跳过
+            if [ "$id" == "$latest_id" ]; then
+              echo "镜像 $id 是最新版本，保留。"
+              continue
+            fi
+
+            # 2. 如果有标签，保留
+            if [ -n "$tags" ]; then
+              echo "镜像 $id 拥有标签: $tags，保留。"
+              continue
+            fi
+
+            # 3. 如果没有标签，检查是否超过 24 小时 (86400秒)
+            if [ $diff_seconds -gt $one_day_seconds ]; then
+              echo "发现 24 小时前且无标签的镜像 $id (创建于 $created_at)，正在删除..."
               gh api -X DELETE -H "Accept: application/vnd.github+json" \
                 /user/packages/container/$PKG_NAME/versions/$id
             else
-              echo "镜像 $id 拥有标签: $tags，保留。"
+              echo "镜像 $id 虽然无标签，但创建不足 24 小时，保留以防万一。"
             fi
-          done 
+          done
