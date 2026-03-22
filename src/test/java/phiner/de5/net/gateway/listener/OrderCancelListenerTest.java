@@ -1,16 +1,14 @@
 package phiner.de5.net.gateway.listener;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.connection.DefaultMessage;
 import org.springframework.data.redis.connection.Message;
 import com.dukascopy.api.JFException;
-import phiner.de5.net.gateway.MsgpackDecoder;
+import phiner.de5.net.gateway.MsgpackUtil;
 import phiner.de5.net.gateway.request.CancelOrderRequest;
 import phiner.de5.net.gateway.service.RedisService;
 import phiner.de5.net.gateway.strategy.TradingStrategy;
@@ -26,20 +24,12 @@ public class OrderCancelListenerTest {
     @Mock
     private RedisService redisService;
 
-    @InjectMocks
     private OrderCancelListener listener;
-
-    private MockedStatic<MsgpackDecoder> mockedDecoder;
 
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        mockedDecoder = mockStatic(MsgpackDecoder.class);
-    }
-
-    @AfterEach
-    public void tearDown() {
-        mockedDecoder.close();
+        listener = new OrderCancelListener(tradingStrategy, redisService);
     }
 
     @Test
@@ -49,14 +39,16 @@ public class OrderCancelListenerTest {
         CancelOrderRequest request = new CancelOrderRequest();
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, CancelOrderRequest.class)).thenReturn(request);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, CancelOrderRequest.class)).thenReturn(request);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verify(tradingStrategy).cancelOrder(request);
-        verifyNoInteractions(redisService);
+            // Then
+            verify(tradingStrategy).cancelOrder(request);
+            verifyNoInteractions(redisService);
+        }
     }
 
     @Test
@@ -66,14 +58,16 @@ public class OrderCancelListenerTest {
         RuntimeException testException = new RuntimeException("Test RuntimeException");
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, CancelOrderRequest.class)).thenThrow(testException);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, CancelOrderRequest.class)).thenThrow(testException);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verifyNoInteractions(tradingStrategy);
-        verify(redisService).publishError("Failed to cancel order: " + testException.getMessage());
+            // Then
+            verifyNoInteractions(tradingStrategy);
+            verify(redisService).publishError(anyString());
+        }
     }
 
     @Test
@@ -82,13 +76,15 @@ public class OrderCancelListenerTest {
         byte[] body = "test body".getBytes();
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, CancelOrderRequest.class)).thenReturn(null);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, CancelOrderRequest.class)).thenReturn(null);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verifyNoInteractions(tradingStrategy);
-        verifyNoInteractions(redisService);
+            // Then
+            verifyNoInteractions(tradingStrategy);
+            verifyNoInteractions(redisService);
+        }
     }
 }

@@ -26,10 +26,8 @@ public class TickManager {
                 tick.getAsk(),
                 tick.getBid()
         );
-        synchronized (lastTicks) {
-            lastTicks.put(instrument, tickDTO);
-            redisService.publishTick(tickDTO);
-        }
+        lastTicks.put(instrument, tickDTO);
+        redisService.publishTick(tickDTO);
     }
 
     public TickDTO getLastTick(String instrument) {

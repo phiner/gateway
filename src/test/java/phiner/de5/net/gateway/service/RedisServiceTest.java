@@ -13,8 +13,7 @@ import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
-import phiner.de5.net.gateway.MsgpackDecoder;
-import phiner.de5.net.gateway.MsgpackEncoder;
+import phiner.de5.net.gateway.MsgpackUtil;
 import phiner.de5.net.gateway.dto.*;
 
 import java.util.Collections;
@@ -50,31 +49,27 @@ public class RedisServiceTest {
 
     private RedisService redisService;
 
-    private MockedStatic<MsgpackEncoder> mockedEncoder;
-    private MockedStatic<MsgpackDecoder> mockedDecoder;
+    private MockedStatic<MsgpackUtil> mockedUtil;
 
     @BeforeEach
     public void setUp() {
         redisService = new RedisService(redisTemplateBytes, redisTemplateString);
         ReflectionTestUtils.setField(redisService, "klineStorageLimit", 100);
-        mockedEncoder = Mockito.mockStatic(MsgpackEncoder.class);
-        mockedDecoder = Mockito.mockStatic(MsgpackDecoder.class);
+        mockedUtil = Mockito.mockStatic(MsgpackUtil.class);
     }
 
     @AfterEach
     public void tearDown() {
-        mockedEncoder.close();
-        mockedDecoder.close();
+        mockedUtil.close();
     }
 
-    //<editor-fold desc="KLine Tests">
     @Test
     public void testAddBarToKLine_Success() {
         when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
-        BarDTO bar = new BarDTO("EUR/USD", "1MIN", iBar);
+        BarDTO bar = new BarDTO("EUR/USD", "ONE_MIN", iBar);
         byte[] barData = "mocked-bar-data".getBytes();
-        String expectedKey = "kline:EUR/USD:1MIN";
-        mockedEncoder.when(() -> MsgpackEncoder.encode(bar)).thenReturn(barData);
+        String expectedKey = "gateway:kline:EUR/USD:1m";
+        mockedUtil.when(() -> MsgpackUtil.encode(bar)).thenReturn(barData);
 
         redisService.addBarToKLine(bar);
 
@@ -84,10 +79,10 @@ public class RedisServiceTest {
 
     @Test
     public void testAddBarToKLine_NullInstrument() {
-        BarDTO bar = new BarDTO(null, "1MIN", iBar);
+        BarDTO bar = new BarDTO(null, "ONE_MIN", iBar);
         redisService.addBarToKLine(bar);
         verifyNoInteractions(redisTemplateBytes);
-        mockedEncoder.verifyNoInteractions();
+        mockedUtil.verifyNoInteractions();
     }
 
     @Test
@@ -95,13 +90,13 @@ public class RedisServiceTest {
         BarDTO bar = new BarDTO("EUR/USD", null, iBar);
         redisService.addBarToKLine(bar);
         verifyNoInteractions(redisTemplateBytes);
-        mockedEncoder.verifyNoInteractions();
+        mockedUtil.verifyNoInteractions();
     }
 
     @Test
     public void testAddBarToKLine_EncoderReturnsNull() {
-        BarDTO bar = new BarDTO("EUR/USD", "1MIN", iBar);
-        mockedEncoder.when(() -> MsgpackEncoder.encode(bar)).thenReturn(null);
+        BarDTO bar = new BarDTO("EUR/USD", "ONE_MIN", iBar);
+        mockedUtil.when(() -> MsgpackUtil.encode(bar)).thenReturn(null);
         redisService.addBarToKLine(bar);
         verifyNoInteractions(redisTemplateBytes);
     }
@@ -109,15 +104,15 @@ public class RedisServiceTest {
     @Test
     public void testGetKLine_Success() {
         String instrument = "EUR/USD";
-        String period = "1MIN";
-        String expectedKey = "kline:EUR/USD:1MIN";
+        String period = "1m";
+        String expectedKey = "gateway:kline:EUR/USD:1m";
         byte[] barData = "mocked-bar-data".getBytes();
         List<byte[]> barDataList = Collections.singletonList(barData);
         BarDTO expectedBar = new BarDTO(instrument, period, iBar);
 
         when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
         when(listOperationsBytes.range(expectedKey, 0, -1)).thenReturn(barDataList);
-        mockedDecoder.when(() -> MsgpackDecoder.decode(barData, BarDTO.class)).thenReturn(expectedBar);
+        mockedUtil.when(() -> MsgpackUtil.decode(barData, BarDTO.class)).thenReturn(expectedBar);
 
         List<BarDTO> result = redisService.getKLine(instrument, period);
 
@@ -128,8 +123,8 @@ public class RedisServiceTest {
     @Test
     public void testGetKLine_EmptyList() {
         String instrument = "EUR/USD";
-        String period = "1MIN";
-        String expectedKey = "kline:EUR/USD:1MIN";
+        String period = "1m";
+        String expectedKey = "gateway:kline:EUR/USD:1m";
 
         when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
         when(listOperationsBytes.range(expectedKey, 0, -1)).thenReturn(Collections.emptyList());
@@ -137,17 +132,15 @@ public class RedisServiceTest {
         List<BarDTO> result = redisService.getKLine(instrument, period);
 
         assertTrue(result.isEmpty());
-        mockedDecoder.verifyNoInteractions();
+        mockedUtil.verifyNoInteractions();
     }
-    //</editor-fold>
 
-    //<editor-fold desc="Publish Tests">
     @Test
     public void testPublishTick() {
         TickDTO tick = new TickDTO("EUR/USD", 123L, 1.1, 1.2);
         byte[] tickData = "mocked-tick-data".getBytes();
-        String expectedChannel = "tick:EUR/USD";
-        mockedEncoder.when(() -> MsgpackEncoder.encode(tick)).thenReturn(tickData);
+        String expectedChannel = "gateway:tick:EUR/USD";
+        mockedUtil.when(() -> MsgpackUtil.encode(tick)).thenReturn(tickData);
 
         redisService.publishTick(tick);
 
@@ -158,8 +151,8 @@ public class RedisServiceTest {
     public void testPublishBar() {
         BarDTO bar = new BarDTO("GBP/USD", "5 Mins", iBar);
         byte[] barData = "mocked-bar-data".getBytes();
-        String expectedChannel = "kline:GBP/USD:5Min";
-        mockedEncoder.when(() -> MsgpackEncoder.encode(bar)).thenReturn(barData);
+        String expectedChannel = "gateway:kline:GBP/USD:5m";
+        mockedUtil.when(() -> MsgpackUtil.encode(bar)).thenReturn(barData);
 
         redisService.publishBar(bar);
 
@@ -174,10 +167,10 @@ public class RedisServiceTest {
         double margin = 50.0;
         double unrealizedPL = 495.50;
         byte[] statusData = "mocked-status-data".getBytes();
-        String expectedChannel = "account:status";
+        String expectedChannel = "gateway:account:status";
         ArgumentCaptor<AccountStatusDTO> captor = ArgumentCaptor.forClass(AccountStatusDTO.class);
 
-        mockedEncoder.when(() -> MsgpackEncoder.encode(captor.capture())).thenReturn(statusData);
+        mockedUtil.when(() -> MsgpackUtil.encode(captor.capture())).thenReturn(statusData);
 
         redisService.publishAccountStatus(balance, equity, baseEquity, margin, unrealizedPL);
 
@@ -192,9 +185,9 @@ public class RedisServiceTest {
     @Test
     public void testPublishOrderEvent() {
         byte[] eventData = "mocked-event-data".getBytes();
-        String expectedChannel = "order:event";
+        String expectedChannel = "gateway:order:event";
         ArgumentCaptor<OrderEventDTO> captor = ArgumentCaptor.forClass(OrderEventDTO.class);
-        mockedEncoder.when(() -> MsgpackEncoder.encode(captor.capture())).thenReturn(eventData);
+        mockedUtil.when(() -> MsgpackUtil.encode(captor.capture())).thenReturn(eventData);
 
         when(iMessage.getType()).thenReturn(IMessage.Type.ORDER_SUBMIT_OK);
         when(iMessage.getCreationTime()).thenReturn(123L);
@@ -228,7 +221,7 @@ public class RedisServiceTest {
         GatewayStatusDTO statusDTO = new GatewayStatusDTO("CONNECTED", "Gateway is up.");
         byte[] statusData = "mocked-status-data".getBytes();
         String expectedChannel = "gateway:status";
-        mockedEncoder.when(() -> MsgpackEncoder.encode(statusDTO)).thenReturn(statusData);
+        mockedUtil.when(() -> MsgpackUtil.encode(statusDTO)).thenReturn(statusData);
 
         redisService.publishGatewayStatus(statusDTO);
 
@@ -240,8 +233,8 @@ public class RedisServiceTest {
         InstrumentInfoDTO infoDTO = new InstrumentInfoDTO();
         String requestId = "req-123";
         byte[] infoData = "mocked-info-data".getBytes();
-        String expectedChannel = "info:instrument:response:req-123";
-        mockedEncoder.when(() -> MsgpackEncoder.encode(infoDTO)).thenReturn(infoData);
+        String expectedChannel = "gateway:info:instrument:response:req-123";
+        mockedUtil.when(() -> MsgpackUtil.encode(infoDTO)).thenReturn(infoData);
 
         redisService.publishInstrumentInfo(infoDTO, requestId);
 
@@ -269,7 +262,7 @@ public class RedisServiceTest {
         redisService.saveConfigPeriods(periods);
 
         verify(redisTemplateString).delete(key);
-        verify(setOperationsString).add(key, periods.toArray(new String[0]));
+        verify(setOperationsString).add(key, "5m", "1d");
     }
 
     @Test
@@ -280,7 +273,7 @@ public class RedisServiceTest {
         String hashKey = "gateway:positions:active";
 
         when(redisTemplateBytes.opsForHash()).thenReturn(hashOperationsBytes);
-        mockedEncoder.when(() -> MsgpackEncoder.encode(pos)).thenReturn(posData);
+        mockedUtil.when(() -> MsgpackUtil.encode(pos)).thenReturn(posData);
 
         redisService.refreshPositionsHash(positions);
 
@@ -304,7 +297,7 @@ public class RedisServiceTest {
         String hashKey = "gateway:orders:history";
 
         when(redisTemplateBytes.opsForHash()).thenReturn(hashOperationsBytes);
-        mockedEncoder.when(() -> MsgpackEncoder.encode(order)).thenReturn(orderData);
+        mockedUtil.when(() -> MsgpackUtil.encode(order)).thenReturn(orderData);
 
         redisService.updateHistoryHash(orders);
 
@@ -320,6 +313,4 @@ public class RedisServiceTest {
         redisService.notifyHistoryUpdated(instrument);
         verify(redisTemplateString).convertAndSend("gateway:orders:history:updated", instrument);
     }
-    //</editor-fold>
-
 }

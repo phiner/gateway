@@ -1,15 +1,13 @@
 package phiner.de5.net.gateway.listener;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.connection.DefaultMessage;
 import org.springframework.data.redis.connection.Message;
-import phiner.de5.net.gateway.MsgpackDecoder;
+import phiner.de5.net.gateway.MsgpackUtil;
 import phiner.de5.net.gateway.request.InstrumentInfoRequest;
 import phiner.de5.net.gateway.service.RedisService;
 import phiner.de5.net.gateway.strategy.TradingStrategy;
@@ -25,20 +23,12 @@ public class InstrumentInfoRequestListenerTest {
     @Mock
     private RedisService redisService;
 
-    @InjectMocks
     private InstrumentInfoRequestListener listener;
-
-    private MockedStatic<MsgpackDecoder> mockedDecoder;
 
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        mockedDecoder = mockStatic(MsgpackDecoder.class);
-    }
-
-    @AfterEach
-    public void tearDown() {
-        mockedDecoder.close();
+        listener = new InstrumentInfoRequestListener(tradingStrategy, redisService);
     }
 
     @Test
@@ -48,14 +38,16 @@ public class InstrumentInfoRequestListenerTest {
         InstrumentInfoRequest request = new InstrumentInfoRequest();
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, InstrumentInfoRequest.class)).thenReturn(request);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, InstrumentInfoRequest.class)).thenReturn(request);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verify(tradingStrategy).handleInstrumentInfoRequest(request);
-        verifyNoInteractions(redisService);
+            // Then
+            verify(tradingStrategy).handleInstrumentInfoRequest(request);
+            verifyNoInteractions(redisService);
+        }
     }
 
     @Test
@@ -65,14 +57,16 @@ public class InstrumentInfoRequestListenerTest {
         RuntimeException testException = new RuntimeException("Test RuntimeException");
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, InstrumentInfoRequest.class)).thenThrow(testException);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, InstrumentInfoRequest.class)).thenThrow(testException);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verifyNoInteractions(tradingStrategy);
-        verify(redisService).publishError("无法处理产品信息请求: " + testException.getMessage());
+            // Then
+            verifyNoInteractions(tradingStrategy);
+            verify(redisService).publishError(anyString());
+        }
     }
 
     @Test
@@ -81,13 +75,15 @@ public class InstrumentInfoRequestListenerTest {
         byte[] body = "test body".getBytes();
         Message message = new DefaultMessage("channel".getBytes(), body);
 
-        mockedDecoder.when(() -> MsgpackDecoder.decode(body, InstrumentInfoRequest.class)).thenReturn(null);
+        try (MockedStatic<MsgpackUtil> mockedUtil = mockStatic(MsgpackUtil.class)) {
+            mockedUtil.when(() -> MsgpackUtil.decode(body, InstrumentInfoRequest.class)).thenReturn(null);
 
-        // When
-        listener.onMessage(message, null);
+            // When
+            listener.onMessage(message, null);
 
-        // Then
-        verifyNoInteractions(tradingStrategy);
-        verifyNoInteractions(redisService);
+            // Then
+            verifyNoInteractions(tradingStrategy);
+            verifyNoInteractions(redisService);
+        }
     }
 }

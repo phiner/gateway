@@ -12,10 +12,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
-import phiner.de5.net.gateway.MsgpackDecoder;
-import phiner.de5.net.gateway.MsgpackEncoder;
+import phiner.de5.net.gateway.MsgpackUtil;
 import phiner.de5.net.gateway.dto.AccountStatusDTO;
 import phiner.de5.net.gateway.dto.BarDTO;
+import phiner.de5.net.gateway.dto.ErrorDTO;
 import phiner.de5.net.gateway.dto.GatewayStatusDTO;
 import phiner.de5.net.gateway.dto.InstrumentInfoDTO;
 import phiner.de5.net.gateway.dto.OrderEventDTO;
@@ -23,6 +23,7 @@ import phiner.de5.net.gateway.dto.OrderHistoryDTO;
 import phiner.de5.net.gateway.dto.OrdersHistoryResponseDTO;
 import phiner.de5.net.gateway.dto.PositionDTO;
 import phiner.de5.net.gateway.dto.TickDTO;
+import phiner.de5.net.gateway.util.PeriodUtil;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,7 +34,7 @@ public class RedisService {
   @Value("${gateway.kline.storage-limit}")
   private int klineStorageLimit;
 
-  private static final String KLINE_KEY_PREFIX = "kline";
+  private static final String KLINE_KEY_PREFIX = "gateway:kline";
   private static final String POSITIONS_HASH_KEY = "gateway:positions:active";
   private static final String POSITIONS_UPDATED_CHANNEL = "gateway:positions:updated";
   private static final String HISTORY_HASH_KEY = "gateway:orders:history";
@@ -60,7 +61,7 @@ public class RedisService {
         String.format(
             "%s:%s:%s",
             KLINE_KEY_PREFIX, bar.getInstrument(), bar.getPeriod());
-    byte[] barData = MsgpackEncoder.encode(bar);
+    byte[] barData = MsgpackUtil.encode(bar);
 
     if (barData == null) {
       log.error("RedisService: Failed to serialize BarDTO to MessagePack. The resulting data is null.");
@@ -85,7 +86,7 @@ public class RedisService {
         return Collections.emptyList();
       }
       return barDataList.stream()
-          .map(data -> MsgpackDecoder.decode(data, BarDTO.class))
+          .map(data -> MsgpackUtil.decode(data, BarDTO.class))
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
     } catch (Exception e) {
@@ -94,20 +95,32 @@ public class RedisService {
     }
   }
 
+  private <T> void publishToChannel(String channel, T data) {
+    try {
+      byte[] encoded = MsgpackUtil.encode(data);
+      if (encoded != null) {
+        redisTemplateBytes.convertAndSend(channel, encoded);
+      }
+    } catch (Exception e) {
+      log.warn("Failed to publish to channel {}: {}", channel, e.getMessage());
+    }
+  }
+
+  private void publishStringToChannel(String channel, String message) {
+    try {
+      redisTemplateString.convertAndSend(channel, message);
+    } catch (Exception e) {
+      log.warn("Failed to publish string to channel {}: {}", channel, e.getMessage());
+    }
+  }
+
   public void publishTick(@NonNull TickDTO tick) {
     if (tick.getInstrument() == null) {
       log.error("RedisService: Cannot publish tick with null instrument.");
       return;
     }
-    String channel = "tick:" + tick.getInstrument();
-    try {
-      byte[] data = MsgpackEncoder.encode(tick);
-      if (data != null) {
-        redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-      }
-    } catch (Exception e) {
-      log.warn("Failed to publish tick on channel {}: {}", channel, e.getMessage());
-    }
+    String channel = "gateway:tick:" + tick.getInstrument();
+    publishToChannel(channel, tick);
   }
 
   public void publishBar(@NonNull BarDTO bar) {
@@ -115,89 +128,44 @@ public class RedisService {
       log.error("RedisService: Cannot publish bar with null instrument/period.");
       return;
     }
-    String channel = String.format("kline:%s:%s", bar.getInstrument(), bar.getPeriod());
-    try {
-      byte[] data = MsgpackEncoder.encode(bar);
-      if (data != null) {
-        redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-      }
-    } catch (Exception e) {
-      log.warn("Failed to publish bar on channel {}: {}", channel, e.getMessage());
-    }
+    String channel = String.format("gateway:kline:%s:%s", bar.getInstrument(), bar.getPeriod());
+    publishToChannel(channel, bar);
   }
 
   public void publishOrderEvent(@NonNull IMessage message) {
-    String channel = "order:event";
-    try {
-      OrderEventDTO eventDTO = new OrderEventDTO(message);
-      byte[] data = MsgpackEncoder.encode(eventDTO);
-
-      if (data == null) {
-        log.error("RedisService: Failed to serialize OrderEventDTO. MessagePack data is null.");
-        return;
-      }
-
-      redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-    } catch (Exception e) {
-      log.warn("Failed to publish order event: {}", e.getMessage());
-    }
+    String channel = "gateway:order:event";
+    OrderEventDTO eventDTO = new OrderEventDTO(message);
+    publishToChannel(channel, eventDTO);
   }
 
   public void publishAccountStatus(double balance, double equity, double baseEquity, double margin, double unrealizedPL) {
-    String channel = "account:status";
-    try {
-      AccountStatusDTO accountStatus = new AccountStatusDTO(balance, equity, baseEquity, margin, unrealizedPL);
-      byte[] data = MsgpackEncoder.encode(accountStatus);
-
-      if (data != null) {
-        redisTemplateBytes.convertAndSend(channel, data);
-      }
-    } catch (Exception e) {
-      log.warn("Failed to publish account status: {}", e.getMessage());
-    }
+    String channel = "gateway:account:status";
+    AccountStatusDTO accountStatus = new AccountStatusDTO(balance, equity, baseEquity, margin, unrealizedPL);
+    publishToChannel(channel, accountStatus);
   }
 
   public void publishError(@NonNull String errorMessage) {
-    String channel = "gateway:error";
-    try {
-      redisTemplateString.convertAndSend(Objects.requireNonNull(channel), errorMessage);
-    } catch (Exception e) {
-      log.warn("Failed to publish error message to {}: {}", channel, e.getMessage());
-    }
+    publishStringToChannel("gateway:error", errorMessage);
+  }
+
+  public void publishStructuredError(@NonNull ErrorDTO errorDTO) {
+    String channel = "gateway:error:structured";
+    publishToChannel(channel, errorDTO);
+    log.info("Published structured error: {} - {}", errorDTO.getCode(), errorDTO.getMessage());
   }
 
   public void publishInfo(@NonNull String infoMessage) {
-    String channel = "gateway:info";
-    try {
-      redisTemplateString.convertAndSend(Objects.requireNonNull(channel), infoMessage);
-    } catch (Exception e) {
-      log.warn("Failed to publish info message to {}: {}", channel, e.getMessage());
-    }
+    publishStringToChannel("gateway:info", infoMessage);
   }
 
-    public void publishGatewayStatus(@NonNull GatewayStatusDTO statusDTO) {
-        String channel = "gateway:status";
-        try {
-            byte[] data = MsgpackEncoder.encode(statusDTO);
-            if (data != null) {
-                redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to publish gateway status: {}", e.getMessage());
-        }
-    }
+  public void publishGatewayStatus(@NonNull GatewayStatusDTO statusDTO) {
+    publishToChannel("gateway:status", statusDTO);
+  }
 
-    public void publishInstrumentInfo(@NonNull InstrumentInfoDTO info, @NonNull String requestId) {
-        String channel = String.format("info:instrument:response:%s", requestId);
-        try {
-            byte[] data = MsgpackEncoder.encode(info);
-            if (data != null) {
-                redisTemplateBytes.convertAndSend(Objects.requireNonNull(channel), data);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to publish instrument info for request {}: {}", requestId, e.getMessage());
-        }
-    }
+  public void publishInstrumentInfo(@NonNull InstrumentInfoDTO info, @NonNull String requestId) {
+    String channel = String.format("gateway:info:instrument:response:%s", requestId);
+    publishToChannel(channel, info);
+  }
 
     /**
      * @deprecated Use refreshPositionsHash instead. This request-response method is being phased out in favor of the Hash-based state model.
@@ -207,11 +175,21 @@ public class RedisService {
         // No-op. Clients should use the baseline Hash: gateway:positions:active
     }
 
+    // 从配置文件中读取 Redis 主机地址，默认值为 127.0.0.1
+    @Value("${spring.data.redis.host:127.0.0.1}")
+    private String redisHost;
+
+    // 从配置文件中读取 Redis 端口号，默认值为 6379
+    @Value("${spring.data.redis.port:6379}")
+    private int redisPort;
+
     public void testConnection() {
         try {
             redisTemplateBytes.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> connection.ping());
         } catch (Exception e) {
-            throw new RuntimeException("Redis connection check failed: " + e.getMessage(), e);
+            // 组装包含详细地址信息的错误提示并抛出
+            String errorMsg = String.format("Redis connection check failed at address [%s:%s]. Unable to connect to Redis: %s", redisHost, redisPort, e.getMessage());
+            throw new RuntimeException(errorMsg, e);
         }
     }
 
@@ -233,8 +211,11 @@ public class RedisService {
         try {
             redisTemplateString.delete(key);
             if (!periods.isEmpty()) {
-                redisTemplateString.opsForSet().add(key, periods.toArray(new String[0]));
-                log.info("Saved {} periods to Redis set: {}", periods.size(), key);
+                List<String> formattedPeriods = periods.stream()
+                        .map(PeriodUtil::format)
+                        .collect(Collectors.toList());
+                redisTemplateString.opsForSet().add(key, formattedPeriods.toArray(new String[0]));
+                log.info("Saved {} periods to Redis set: {}", formattedPeriods.size(), key);
             }
         } catch (Exception e) {
             log.error("Failed to save config periods to Redis: {}", e.getMessage(), e);
@@ -244,7 +225,7 @@ public class RedisService {
     public void saveInstrumentInfo(@NonNull InstrumentInfoDTO info) {
         String key = "gateway:config:instrument_info";
         try {
-            byte[] data = MsgpackEncoder.encode(info);
+            byte[] data = MsgpackUtil.encode(info);
             if (data != null) {
                 redisTemplateBytes.opsForHash().put(key, info.getName(), data);
                 log.info("Saved instrument info for {} to Redis hash: {}", info.getName(), key);
@@ -259,7 +240,7 @@ public class RedisService {
             redisTemplateBytes.delete(POSITIONS_HASH_KEY);
             if (!positions.isEmpty()) {
                 for (PositionDTO pos : positions) {
-                    byte[] data = MsgpackEncoder.encode(pos);
+                    byte[] data = MsgpackUtil.encode(pos);
                     if (data != null) {
                         redisTemplateBytes.opsForHash().put(POSITIONS_HASH_KEY, pos.getDealId(), data);
                     }
@@ -287,7 +268,7 @@ public class RedisService {
         try {
             Map<String, byte[]> map = new HashMap<>();
             for (OrderHistoryDTO order : orders) {
-                byte[] data = MsgpackEncoder.encode(order);
+                byte[] data = MsgpackUtil.encode(order);
                 if (data != null) {
                     map.put(order.getDealId(), data);
                 }
