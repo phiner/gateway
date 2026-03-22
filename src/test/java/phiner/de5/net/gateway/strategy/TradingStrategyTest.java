@@ -179,7 +179,7 @@ public class TradingStrategyTest {
 
       // Then
       // Then
-      verify(engine).submitOrder(eq("label_1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236));
+      verify(engine).submitOrder(eq("label-1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236));
     }
   }
 
@@ -255,7 +255,7 @@ public class TradingStrategyTest {
         tradingStrategy.submitOrder(request);
 
         // Then
-        verify(engine).submitOrder(eq("label_2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600));
+        verify(engine).submitOrder(eq("label-2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600));
       }
   }
 
@@ -342,8 +342,8 @@ public class TradingStrategyTest {
           // When
           tradingStrategy.executeMarketOrder(request);
 
-          // Then - 预期横杠被替换为下划线
-          verify(engine).submitOrder(eq("PivotSniper_5Min_123"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          // Then - 保持原标签，由 JForex API 验证
+          verify(engine).submitOrder(eq("PivotSniper-5Min-123"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
       }
   }
 
@@ -362,8 +362,8 @@ public class TradingStrategyTest {
           // When
           tradingStrategy.executeMarketOrder(request);
 
-          // Then - 预期数字开头被补齐 L_ 前缀
-          verify(engine).submitOrder(eq("L_123Strategy"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          // Then - 保持原标签，由 JForex API 验证
+          verify(engine).submitOrder(eq("123Strategy"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
       }
   }
 
@@ -382,8 +382,8 @@ public class TradingStrategyTest {
           // When
           tradingStrategy.executeMarketOrder(request);
 
-          // Then - 预期特殊字符被替换为下划线
-          verify(engine).submitOrder(eq("Order________"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          // Then - 保持原标签，由 JForex API 验证
+          verify(engine).submitOrder(eq("Order@#%^&*()"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
       }
   }
 

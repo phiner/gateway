@@ -13,6 +13,9 @@ spring:
       password: ${REDIS_PASSWORD:}
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  threads:
+    virtual:
+      enabled: true
 server:
   shutdown: graceful
 

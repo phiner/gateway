@@ -55,16 +55,18 @@ Unlike running a strategy directly inside JForex:
 ### Market Data (Output Streams)
 | Channel | Description | Data Structure |
 | :--- | :--- | :--- |
-| `tick:{Symbol}` | L1 Market Data | `Time, Ask, Bid` |
-| `kline:{Symbol}:{Period}` | OHLC Bar Data | `Time, Open, High, Low, Close, Volume` |
-| `account:status` | Real-time balance | `Equity, Margin, Unrealized P/L` |
+| `gateway:tick:{Symbol}` | L1 Market Data | `Time, Ask, Bid` (MessagePack) |
+| `gateway:kline:{Symbol}:{Period}` | OHLC Bar Data | `Time, Open, High, Low, Close, Volume` (MessagePack) |
+| `gateway:account:status` | Real-time balance | `Equity, Margin, Unrealized P/L` (MessagePack) |
 
 ### Command Interface (Input Control)
-Trigger trades by publishing to these channels:
-- `order:submit`: Submit Market/Limit/Stop orders.
-- `order:modify`: Updates SL/TP on the fly.
-- `order:cancel`: Terminate pending orders.
-- `order:close`: Full or partial position liquidation.
+Trigger trades by publishing MessagePack data to these channels:
+- `gateway:order:submit`: Submit Market/Limit/Stop orders.
+- `gateway:order:modify`: Updates SL/TP on the fly.
+- `gateway:order:cancel`: Terminate pending orders.
+- `gateway:order:close`: Full or partial position liquidation。
+
+详见 [Gateway API 文档](./docs/gateway_api.md)
 
 ---
 
@@ -75,7 +77,31 @@ Trigger trades by publishing to these channels:
    ```bash
    ./mvnw spring-boot:run
    ```
-3. **Connect your Strategy**: Use any Redis client to subscribe to `tick:EUR/USD` and start receiving binary MessagePack data.
+3. **Connect your Strategy**: Use any Redis client to subscribe to market data and send orders.
+
+**Example: Subscribe to EUR/USD ticks and errors**
+```javascript
+// Node.js example
+const Redis = require('ioredis');
+const msgpack = require('msgpack');
+
+const redis = new Redis();
+
+// Subscribe to ticks
+redis.subscribe('gateway:tick:EUR/USD');
+// Subscribe to errors
+redis.subscribe('gateway:error:structured');
+
+redis.on('message', (channel, message) => {
+  const data = msgpack.decode(Buffer.from(message));
+  
+  if (channel.startsWith('gateway:tick:')) {
+    console.log(`Tick: ${data.ask} / ${data.bid}`);
+  } else if (channel === 'gateway:error:structured') {
+    console.log(`Error: ${data.code} - ${data.message}`);
+  }
+});
+```
 
 ---
 Built with ❤️ for the Quant community by **Phiner**.

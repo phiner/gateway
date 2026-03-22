@@ -179,7 +179,7 @@ public class TradingStrategy implements IStrategy {
                     long from = to - (klineStorageLimit * period.getInterval());
                     
                     // 获取历史 K线数据
-                    List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, from, to);
+                    List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, from, to);
                     
                     if (bars != null && !bars.isEmpty()) {
                         log.info("异步历史预加载器: 收到 {} 的 {} 周期共 {} 条历史记录", instrumentName, period, bars.size());
@@ -495,32 +495,11 @@ public class TradingStrategy implements IStrategy {
                 return null;
             }
 
-            String name = instrument.toString();
-            ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
-            ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
-
-            if (name == null || primaryCurrency == null || secondaryCurrency == null) {
+            InstrumentInfoDTO infoDTO = createInstrumentInfoDTO(instrument);
+            if (infoDTO == null) {
                 redisService.publishError("Error fetching instrument info for " + instrumentName + ": received null values from API.");
                 return null;
             }
-
-            String primaryCode = primaryCurrency.getCurrencyCode();
-            String secondaryCode = secondaryCurrency.getCurrencyCode();
-
-            if (primaryCode == null || secondaryCode == null) {
-                redisService.publishError("Error fetching instrument info for " + instrumentName + ": currency code is null.");
-                return null;
-            }
-
-            String currency = primaryCode + "/" + secondaryCode;
-            InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
-                    name,
-                    currency,
-                    java.math.BigDecimal.valueOf(instrument.getPipValue()).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
-                    java.math.BigDecimal.valueOf(Math.pow(10, -instrument.getTickScale())).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
-                    name,
-                    instrument.getMinTradeAmount()
-            );
 
             redisService.saveInstrumentInfo(infoDTO);
             redisService.publishInstrumentInfo(infoDTO, requestId);
@@ -542,6 +521,8 @@ public class TradingStrategy implements IStrategy {
         if (context == null) {
             log.error("JForex Context is not initialized. Failed: {}", errorContext);
             redisService.publishError("JForex Context not initialized. " + errorContext);
+            ErrorDTO error = ErrorDTO.validationError("CONTEXT_NOT_INITIALIZED", "JForex Context is not initialized", errorContext);
+            redisService.publishStructuredError(error);
             return;
         }
         context.executeTask(() -> {
@@ -550,79 +531,136 @@ public class TradingStrategy implements IStrategy {
             } catch (Exception e) {
                 log.error("Exception in JForex thread: {}", errorContext, e);
                 redisService.publishError("JForex Thread Error: " + errorContext + " - " + e.getMessage());
+                ErrorDTO structuredError = extractErrorFromException(e, errorContext);
+                redisService.publishStructuredError(structuredError);
                 return null;
             }
         });
     }
 
+    private ErrorDTO extractErrorFromException(Exception e, String context) {
+        String code = "UNKNOWN_ERROR";
+        String message = e.getMessage();
+
+        String exceptionMessage = e.getMessage();
+        if (exceptionMessage != null) {
+            if (exceptionMessage.contains("LABEL_NOT_UNIQUE") || exceptionMessage.contains("not unique")) {
+                code = "LABEL_NOT_UNIQUE";
+                message = "Order label already exists. Each order label must be unique.";
+            } else if (exceptionMessage.contains("LABEL_INCONSISTENT") || exceptionMessage.contains("inconsistent")) {
+                code = "LABEL_INCONSISTENT";
+                message = "Order label conflict with existing order.";
+            } else if (exceptionMessage.contains("INVALID_AMOUNT") || exceptionMessage.contains("Invalid amount")) {
+                code = "INVALID_AMOUNT";
+                message = "Invalid order amount. Check minimum/maximum trade amount.";
+            } else if (exceptionMessage.contains("ORDER_INCORRECT") || exceptionMessage.contains("Incorrect")) {
+                code = "ORDER_INCORRECT";
+                message = "Order parameters are incorrect.";
+            } else if (exceptionMessage.contains("ORDER_STATE_IMMUTABLE") || exceptionMessage.contains("state")) {
+                code = "ORDER_STATE_IMMUTABLE";
+                message = "Order state cannot be modified in current state.";
+            } else if (exceptionMessage.contains("ORDER_CANCEL_INCORRECT")) {
+                code = "ORDER_CANCEL_INCORRECT";
+                message = "Cannot cancel order in current state.";
+            } else if (exceptionMessage.contains("ORDERS_UNAVAILABLE") || exceptionMessage.contains("unavailable")) {
+                code = "ORDERS_UNAVAILABLE";
+                message = "Trading is currently unavailable.";
+            } else if (exceptionMessage.contains("QUEUE_OVERLOADED") || exceptionMessage.contains("queue")) {
+                code = "QUEUE_OVERLOADED";
+                message = "Order queue is overloaded. Try again later.";
+            } else if (exceptionMessage.contains("ZERO_PRICE") || exceptionMessage.contains("zero price")) {
+                code = "ZERO_PRICE_NOT_ALLOWED";
+                message = "Zero price is not allowed for this order type.";
+            } else if (exceptionMessage.contains("INVALID_GTT") || exceptionMessage.contains("GTT")) {
+                code = "INVALID_GTT";
+                message = "Invalid Good-Till-Time settings.";
+            } else if (exceptionMessage.contains("NO_ACCOUNT_SETTINGS")) {
+                code = "NO_ACCOUNT_SETTINGS_RECEIVED";
+                message = "Account settings not received yet.";
+            } else if (exceptionMessage.contains("CALL_INCORRECT")) {
+                code = "CALL_INCORRECT";
+                message = "API call made from incorrect context/thread.";
+            } else if (exceptionMessage.contains("COMMAND_IS_NULL") || exceptionMessage.contains("null")) {
+                code = "COMMAND_IS_NULL";
+                message = "Order command is null.";
+            }
+        }
+
+        if (e instanceof IllegalArgumentException) {
+            code = "VALIDATION_ERROR";
+            message = "Invalid argument: " + e.getMessage();
+        } else if (e instanceof NullPointerException) {
+            code = "NULL_POINTER";
+            message = "Null reference in " + context;
+        }
+
+        return new ErrorDTO(code, message, "ORDER_ERROR", context);
+    }
+
     private void saveInstrumentDetailsToRedis(@NonNull Instrument instrument) {
         try {
-            String name = instrument.toString();
-            ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
-            ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
-
-            if (name == null || primaryCurrency == null || secondaryCurrency == null) {
+            InstrumentInfoDTO infoDTO = createInstrumentInfoDTO(instrument);
+            if (infoDTO != null) {
+                redisService.saveInstrumentInfo(infoDTO);
+            } else {
                 log.error("Failed to fetch full instrument details for {}", instrument);
-                return;
             }
-
-            String currency = primaryCurrency.getCurrencyCode() + "/" + secondaryCurrency.getCurrencyCode();
-            InstrumentInfoDTO infoDTO = new InstrumentInfoDTO(
-                    name,
-                    currency,
-                    java.math.BigDecimal.valueOf(instrument.getPipValue()).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
-                    java.math.BigDecimal.valueOf(Math.pow(10, -instrument.getTickScale())).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
-                    name,
-                    instrument.getMinTradeAmount()
-            );
-            redisService.saveInstrumentInfo(infoDTO);
         } catch (Exception e) {
             log.error("Error saving instrument info for {} to Redis", instrument, e);
         }
+    }
+
+    private InstrumentInfoDTO createInstrumentInfoDTO(Instrument instrument) {
+        String name = instrument.toString();
+        ICurrency primaryCurrency = instrument.getPrimaryJFCurrency();
+        ICurrency secondaryCurrency = instrument.getSecondaryJFCurrency();
+
+        if (name == null || primaryCurrency == null || secondaryCurrency == null) {
+            return null;
+        }
+
+        String primaryCode = primaryCurrency.getCurrencyCode();
+        String secondaryCode = secondaryCurrency.getCurrencyCode();
+
+        if (primaryCode == null || secondaryCode == null) {
+            return null;
+        }
+
+        String currency = primaryCode + "/" + secondaryCode;
+        return new InstrumentInfoDTO(
+                name,
+                currency,
+                java.math.BigDecimal.valueOf(instrument.getPipValue()).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
+                java.math.BigDecimal.valueOf(Math.pow(10, -instrument.getTickScale())).setScale(6, java.math.RoundingMode.HALF_UP).doubleValue(),
+                name,
+                instrument.getMinTradeAmount()
+        );
     }
 
   private String getNewLabel() {
     return "Order_" + System.currentTimeMillis();
   }
 
-  /**
-   * 清洗订单标签以符合 JForex 规范（仅允许字母、数字和下划线）。
-   * 如果标签以数字开头，则增加前缀以符合规范。
-   */
   private String sanitizeLabel(String label) {
       if (label == null || label.isEmpty()) {
           return getNewLabel();
       }
-      // 将非法字符替换为下划线
-      String sanitized = label.replaceAll("[^a-zA-Z0-9_]", "_");
-      
-      // JForex 标签不能以数字开头（虽然文档未明确写，但经验表明部分版本有此限制，且用户报错也涉及到此）
-      // 实际上报错信息显示 PivotSniper-5Min 其中包含横杠。
-      // 如果首字母是数字，增加前缀
-      if (Character.isDigit(sanitized.charAt(0))) {
-          sanitized = "L_" + sanitized;
+      if (!label.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
+          log.error("Label may be invalid according to JForex rules (contains special chars or starts with digit): {}", label);
       }
-      
-      return sanitized;
+      return label;
   }
 
   /**
-   * 鲁棒的 Instrument 解析方法，支持处理没有斜杠的产品名（如 USDJPY -> USD/JPY）
+   * 严格解析 Instrument，不进行隐式转换以符合用户期望。
    */
   private Instrument parseInstrument(String instrumentName) {
       if (instrumentName == null || instrumentName.isEmpty()) {
           return null;
       }
-      // 1. 尝试直接解析
       Instrument instrument = Instrument.fromString(instrumentName);
-      
-      // 2. 如果失败且格式为 6 位字母，尝试插入斜杠
-      if (instrument == null && instrumentName.length() == 6 && !instrumentName.contains("/")) {
-          String normalized = instrumentName.substring(0, 3) + "/" + instrumentName.substring(3);
-          instrument = Instrument.fromString(normalized);
-          if (instrument != null) {
-              log.info("Normalized instrument name from '{}' to '{}'", instrumentName, normalized);
-          }
+      if (instrument == null) {
+          log.error("Failed to parse instrument strictly from string: {}", instrumentName);
       }
       return instrument;
   }

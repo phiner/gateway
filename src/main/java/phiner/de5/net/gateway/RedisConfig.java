@@ -46,14 +46,14 @@ public class RedisConfig {
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(instrumentInfoRequestListener, new ChannelTopic("system:request:instrument_info"));
-        container.addMessageListener(orderOpenListener, new ChannelTopic("order:open"));
-        container.addMessageListener(orderCloseListener, new ChannelTopic("order:close"));
-        container.addMessageListener(orderSubmitListener, new ChannelTopic("order:submit"));
-        container.addMessageListener(orderModifyListener, new ChannelTopic("order:modify"));
-        container.addMessageListener(orderCancelListener, new ChannelTopic("order:cancel"));
-        container.addMessageListener(ordersHistoryRequestListener, new ChannelTopic("system:request:orders_history"));
-        container.addMessageListener(positionsRequestListener, new ChannelTopic("system:request:positions"));
+        container.addMessageListener(instrumentInfoRequestListener, new ChannelTopic("gateway:system:request:instrument_info"));
+        container.addMessageListener(orderOpenListener, new ChannelTopic("gateway:order:open"));
+        container.addMessageListener(orderCloseListener, new ChannelTopic("gateway:order:close"));
+        container.addMessageListener(orderSubmitListener, new ChannelTopic("gateway:order:submit"));
+        container.addMessageListener(orderModifyListener, new ChannelTopic("gateway:order:modify"));
+        container.addMessageListener(orderCancelListener, new ChannelTopic("gateway:order:cancel"));
+        container.addMessageListener(ordersHistoryRequestListener, new ChannelTopic("gateway:system:request:orders_history"));
+        container.addMessageListener(positionsRequestListener, new ChannelTopic("gateway:system:request:positions"));
         return container;
     }
 

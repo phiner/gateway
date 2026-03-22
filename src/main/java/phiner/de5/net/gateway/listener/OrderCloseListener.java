@@ -1,37 +1,19 @@
 package phiner.de5.net.gateway.listener;
 
-import com.dukascopy.api.JFException;
-import org.springframework.data.redis.connection.Message;
-import org.springframework.data.redis.connection.MessageListener;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
-import phiner.de5.net.gateway.MsgpackDecoder;
 import phiner.de5.net.gateway.request.CloseMarketOrderRequest;
 import phiner.de5.net.gateway.service.RedisService;
 import phiner.de5.net.gateway.strategy.TradingStrategy;
 
 @Component
-public class OrderCloseListener implements MessageListener {
-
-    private final TradingStrategy tradingStrategy;
-    private final RedisService redisService;
+public class OrderCloseListener extends AbstractRequestListener<CloseMarketOrderRequest> {
 
     public OrderCloseListener(TradingStrategy tradingStrategy, RedisService redisService) {
-        this.tradingStrategy = tradingStrategy;
-        this.redisService = redisService;
+        super(tradingStrategy, redisService, CloseMarketOrderRequest.class, "market order close");
     }
 
     @Override
-    public void onMessage(@NonNull Message message, @Nullable byte[] pattern) {
-        try {
-            CloseMarketOrderRequest request = MsgpackDecoder.decode(message.getBody(), CloseMarketOrderRequest.class);
-            if (request != null) {
-                tradingStrategy.closeMarketOrder(request);
-            }
-        } catch (Exception e) {
-            redisService.publishError("无法处理平仓市场订单请求: " + e.getMessage());
-            e.printStackTrace();
-        }
+    protected void executeRequest(CloseMarketOrderRequest request) {
+        tradingStrategy.closeMarketOrder(request);
     }
 }
