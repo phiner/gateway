@@ -1,0 +1,271 @@
+# Instincts generated from https://github.com/phiner/gateway
+# Generated: 2026-03-22T01:55:07.760Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: gateway-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Commit Length
+
+## Action
+
+Keep commit messages concise (~33 characters)
+
+## Evidence
+
+- Average commit message length: 33 chars
+- Based on 56 commits
+
+---
+id: gateway-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Naming Files
+
+## Action
+
+Use PascalCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: PascalCase
+
+---
+id: gateway-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: gateway-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: gateway-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: gateway-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~15x per month
+- Files: **/*.test.*, **/api/**
+
+---
+id: gateway-workflow-refactoring
+trigger: "when refactoring code"
+confidence: 0.8
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Refactoring
+
+## Action
+
+Follow the refactoring workflow:
+1. Ensure tests pass before refactor
+2. Refactor code structure
+3. Verify tests still pass
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~6x per month
+- Files: src/**/*
+
+---
+id: gateway-workflow-dto-addition-or-field-extension
+trigger: "when doing dto addition or field extension"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Dto Addition Or Field Extension
+
+## Action
+
+Follow the dto-addition-or-field-extension workflow:
+1. Modify or add Java DTO class in src/main/java/phiner/de5/net/gateway/dto/
+2. Update related service/strategy/listener code if needed
+3. Update docs/redis_api.md with new fields or DTO structure
+4. Add or update corresponding test in src/test/java/phiner/de5/net/gateway/dto/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: src/main/java/phiner/de5/net/gateway/dto/*.java, docs/redis_api.md, src/test/java/phiner/de5/net/gateway/dto/*.java
+
+---
+id: gateway-workflow-feature-implementation-with-tests-and-docs
+trigger: "when doing feature implementation with tests and docs"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Feature Implementation With Tests And Docs
+
+## Action
+
+Follow the feature-implementation-with-tests-and-docs workflow:
+1. Implement or modify feature logic in src/main/java/phiner/de5/net/gateway/ (strategy, service, listener, etc.)
+2. Update or add tests in src/test/java/phiner/de5/net/gateway/
+3. Update docs/redis_api.md or other relevant docs
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: src/main/java/phiner/de5/net/gateway/**/*.java, src/test/java/phiner/de5/net/gateway/**/*.java, docs/redis_api.md
+
+---
+id: gateway-workflow-ci-cd-workflow-update
+trigger: "when doing ci cd workflow update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Ci Cd Workflow Update
+
+## Action
+
+Follow the ci-cd-workflow-update workflow:
+1. Modify .github/workflows/*.yml files
+2. Sometimes update pom.xml or related build files
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: .github/workflows/*.yml, pom.xml
+
+---
+id: gateway-workflow-documentation-update
+trigger: "when doing documentation update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Documentation Update
+
+## Action
+
+Follow the documentation-update workflow:
+1. Edit docs/redis_api.md, README.md, or other docs files
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: docs/redis_api.md, README.md, README_CN.md
+
+---
+id: gateway-workflow-refactor-or-optimize-core-logic
+trigger: "when doing refactor or optimize core logic"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/phiner/gateway
+---
+
+# Gateway Workflow Refactor Or Optimize Core Logic
+
+## Action
+
+Follow the refactor-or-optimize-core-logic workflow:
+1. Modify several files in src/main/java/phiner/de5/net/gateway/ (strategy, service, listener, util, etc.)
+2. Update related tests in src/test/java/phiner/de5/net/gateway/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/main/java/phiner/de5/net/gateway/**/*.java, src/test/java/phiner/de5/net/gateway/**/*.java
+
