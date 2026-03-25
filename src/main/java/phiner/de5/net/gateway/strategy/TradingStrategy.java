@@ -440,7 +440,9 @@ public class TradingStrategy implements IStrategy {
                     price,
                     slippage,
                     stopLossPrice,
-                    takeProfitPrice
+                    takeProfitPrice,
+                    null,
+                    request.getComments()
             );
             return null;
         }, "Submit Order [" + request.getInstrument() + "]");
