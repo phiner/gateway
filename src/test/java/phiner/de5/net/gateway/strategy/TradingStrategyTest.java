@@ -179,7 +179,7 @@ public class TradingStrategyTest {
 
       // Then
       // Then
-      verify(engine).submitOrder(eq("label-1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236));
+      verify(engine).submitOrder(eq("label-1"), eq(mockInstrument), eq(IEngine.OrderCommand.BUY), eq(0.1), eq(0.0), eq(5.0), eq(1.1234), eq(1.1236), eq(0L), any());
     }
   }
 
@@ -199,7 +199,7 @@ public class TradingStrategyTest {
       tradingStrategy.executeMarketOrder(request);
 
       // Then
-      verify(engine).submitOrder(labelCaptor.capture(), eq(mockInstrument), eq(IEngine.OrderCommand.SELL), eq(0.2), eq(0.0), eq(10.0), eq(95.12), eq(96.55));
+      verify(engine).submitOrder(labelCaptor.capture(), eq(mockInstrument), eq(IEngine.OrderCommand.SELL), eq(0.2), eq(0.0), eq(10.0), eq(95.12), eq(96.55), eq(0L), any());
       assert(labelCaptor.getValue().startsWith("Order_"));
     }
   }
@@ -255,7 +255,7 @@ public class TradingStrategyTest {
         tradingStrategy.submitOrder(request);
 
         // Then
-        verify(engine).submitOrder(eq("label-2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600));
+        verify(engine).submitOrder(eq("label-2"), eq(mockInstrument), eq(IEngine.OrderCommand.BUYLIMIT), eq(0.05), eq(1.2500), eq(0.0), eq(1.2400), eq(1.2600), eq(0L), any());
       }
   }
 
@@ -343,7 +343,7 @@ public class TradingStrategyTest {
           tradingStrategy.executeMarketOrder(request);
 
           // Then - 保持原标签，由 JForex API 验证
-          verify(engine).submitOrder(eq("PivotSniper-5Min-123"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          verify(engine).submitOrder(eq("PivotSniper-5Min-123"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyLong(), any());
       }
   }
 
@@ -363,7 +363,7 @@ public class TradingStrategyTest {
           tradingStrategy.executeMarketOrder(request);
 
           // Then - 保持原标签，由 JForex API 验证
-          verify(engine).submitOrder(eq("123Strategy"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          verify(engine).submitOrder(eq("123Strategy"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyLong(), any());
       }
   }
 
@@ -383,7 +383,7 @@ public class TradingStrategyTest {
           tradingStrategy.executeMarketOrder(request);
 
           // Then - 保持原标签，由 JForex API 验证
-          verify(engine).submitOrder(eq("Order@#%^&*()"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble());
+          verify(engine).submitOrder(eq("Order@#%^&*()"), any(), any(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyDouble(), anyLong(), any());
       }
   }
 

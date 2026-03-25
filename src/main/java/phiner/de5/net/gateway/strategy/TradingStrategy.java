@@ -397,7 +397,9 @@ public class TradingStrategy implements IStrategy {
                 0, // 价格
                 request.getSlippage() != null ? request.getSlippage() : 0.0, // 滑点
                 request.getStopLossPrice() != null ? request.getStopLossPrice() : 0.0, // 止损价
-                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0.0 // 止盈价
+                request.getTakeProfitPrice() != null ? request.getTakeProfitPrice() : 0.0, // 止盈价
+                0L, // GTT
+                null // comments
         );
             return null;
         }, "Open Market Order [" + request.getInstrument() + "]");
@@ -440,7 +442,9 @@ public class TradingStrategy implements IStrategy {
                     price,
                     slippage,
                     stopLossPrice,
-                    takeProfitPrice
+                    takeProfitPrice,
+                    0L,
+                    request.getComments()
             );
             return null;
         }, "Submit Order [" + request.getInstrument() + "]");
