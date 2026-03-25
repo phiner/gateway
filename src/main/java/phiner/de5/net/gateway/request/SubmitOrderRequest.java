@@ -27,4 +27,6 @@ public class SubmitOrderRequest {
     private Double stopLossPrice;
     @JsonProperty("takeProfitPrice")
     private Double takeProfitPrice;
+    @JsonProperty("comments")
+    private String comments;
 }
