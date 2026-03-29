@@ -230,8 +230,14 @@ fn main() -> redis::RedisResult<()> {
 
     println!("从 Sorted Set 加载了 {} 条 K 线。", raw_bars.len());
     for raw_bar in raw_bars {
-        let bar: Value = rmp_serde::from_slice(&raw_bar).unwrap();
-        println!("时间: {}, 收盘价: {}, 成交量: {}", bar["time"], bar["close"], bar["volume"]);
+        match rmp_serde::from_slice::<serde_json::Value>(&raw_bar) {
+            Ok(bar) => {
+                println!("时间: {}, 收盘价: {}, 成交量: {}", bar["time"], bar["close"], bar["volume"]);
+            },
+            Err(e) => {
+                eprintln!("Failed to decode a bar, skipping: {}", e);
+            }
+        }
     }
     Ok(())
 }
