@@ -83,7 +83,7 @@ public class RedisService {
       redisTemplateBytes.opsForZSet().add(redisKey, barData, score);
       // 3. 这里的 ZSET 是按 score 升序排列的，我们需要保留最高分（最新）的 N 条，移除较低分（最老）的数据
       // 移除从 0 到 -(limit+1) 范围的元素
-      redisTemplateBytes.opsForZSet().removeRangeByRank(redisKey, 0, -(klineStorageLimit + 1));
+      redisTemplateBytes.opsForZSet().removeRange(redisKey, 0, -(klineStorageLimit + 1));
       
     } catch (Exception e) {
       log.warn("RedisService: Failed to write bar to ZSET key {}: {}", redisKey, e.getMessage());

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.ListOperations;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -33,7 +33,7 @@ public class RedisServiceTest {
     private RedisTemplate<String, String> redisTemplateString;
 
     @Mock
-    private ListOperations<String, byte[]> listOperationsBytes;
+    private ZSetOperations<String, byte[]> zSetOperationsBytes;
 
     @Mock
     private SetOperations<String, String> setOperationsString;
@@ -65,7 +65,10 @@ public class RedisServiceTest {
 
     @Test
     public void testAddBarToKLine_Success() {
-        when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
+        when(redisTemplateBytes.opsForZSet()).thenReturn(zSetOperationsBytes);
+        // Mock type check to not be LIST
+        when(redisTemplateBytes.type(anyString())).thenReturn(org.springframework.data.redis.connection.DataType.NONE);
+
         BarDTO bar = new BarDTO("EUR/USD", "ONE_MIN", iBar);
         byte[] barData = "mocked-bar-data".getBytes();
         String expectedKey = "gateway:kline:EUR/USD:1m";
@@ -73,8 +76,13 @@ public class RedisServiceTest {
 
         redisService.addBarToKLine(bar);
 
-        verify(listOperationsBytes).leftPush(expectedKey, barData);
-        verify(listOperationsBytes).trim(expectedKey, 0, 99);
+        double score = bar.getTime();
+        // 1. Verify removeRangeByScore for deduplication
+        verify(zSetOperationsBytes).removeRangeByScore(expectedKey, score, score);
+        // 2. Verify add to ZSET
+        verify(zSetOperationsBytes).add(expectedKey, barData, score);
+        // 3. Verify trim (removeRange)
+        verify(zSetOperationsBytes).removeRange(expectedKey, 0, -101);
     }
 
     @Test
@@ -107,11 +115,12 @@ public class RedisServiceTest {
         String period = "1m";
         String expectedKey = "gateway:kline:EUR/USD:1m";
         byte[] barData = "mocked-bar-data".getBytes();
-        List<byte[]> barDataList = Collections.singletonList(barData);
+        // ZSet returns a Set
+        java.util.Set<byte[]> barDataSet = new java.util.LinkedHashSet<>(Collections.singletonList(barData));
         BarDTO expectedBar = new BarDTO(instrument, period, iBar);
 
-        when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
-        when(listOperationsBytes.range(expectedKey, 0, -1)).thenReturn(barDataList);
+        when(redisTemplateBytes.opsForZSet()).thenReturn(zSetOperationsBytes);
+        when(zSetOperationsBytes.reverseRange(expectedKey, 0, -1)).thenReturn(barDataSet);
         mockedUtil.when(() -> MsgpackUtil.decode(barData, BarDTO.class)).thenReturn(expectedBar);
 
         List<BarDTO> result = redisService.getKLine(instrument, period);
@@ -126,8 +135,8 @@ public class RedisServiceTest {
         String period = "1m";
         String expectedKey = "gateway:kline:EUR/USD:1m";
 
-        when(redisTemplateBytes.opsForList()).thenReturn(listOperationsBytes);
-        when(listOperationsBytes.range(expectedKey, 0, -1)).thenReturn(Collections.emptyList());
+        when(redisTemplateBytes.opsForZSet()).thenReturn(zSetOperationsBytes);
+        when(zSetOperationsBytes.reverseRange(expectedKey, 0, -1)).thenReturn(Collections.emptySet());
 
         List<BarDTO> result = redisService.getKLine(instrument, period);
 
