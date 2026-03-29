@@ -294,7 +294,7 @@ fn main() -> redis::RedisResult<()> {
     loop {
         let msg = pubsub.get_message()?;
         let payload: Vec<u8> = msg.get_payload()?;
-        let error: Value = rmp_serde::from_slice(&payload).unwrap();
+        let error: Value = rmp_serde::from_slice(&payload).map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "Msgpack decode error", e.to_string())))?;
         println!("错误代码: {} - 消息: {}", error["code"], error["message"]);
     }
 }
