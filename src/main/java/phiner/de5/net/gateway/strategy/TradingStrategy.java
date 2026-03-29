@@ -174,12 +174,11 @@ public class TradingStrategy implements IStrategy {
                 for (Period period : this.configuredPeriods) {
                   try {
                     log.info("异步历史预加载器: 正在请求 {} 的 {} 周期历史数据", instrumentName, period);
-                    // 计算范围：从最后一个已连续的 K线开始执行
+                    // 计算获取范围：取上一个完整 Bar 的结束时间作为基准
                     long to = history.getPreviousBarStart(period, context.getTime());
-                    long from = to - (klineStorageLimit * period.getInterval());
                     
-                    // 获取历史 K线数据
-                    List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, from, to);
+                    // 向服务获取最新指定数量（klineStorageLimit）的历史 K 线，并过滤掉周末
+                    List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, klineStorageLimit, to, 0);
                     
                     if (bars != null && !bars.isEmpty()) {
                         log.info("异步历史预加载器: 收到 {} 的 {} 周期共 {} 条历史记录", instrumentName, period, bars.size());
@@ -191,7 +190,7 @@ public class TradingStrategy implements IStrategy {
                             }
                         }
                     } else if (bars != null) {
-                        log.warn("异步历史预加载器: 在 {} 到 {} 范围内未收到 {} 的 {} 周期数据", from, to, instrumentName, period);
+                        log.warn("异步历史预加载器: 未收到 {} 的 {} 周期历史数据（请求数量: {}）", instrumentName, period, klineStorageLimit);
                     } else {
                         log.warn("异步历史预加载器: 收到 {} 的 {} 周期数据为 null", instrumentName, period);
                     }

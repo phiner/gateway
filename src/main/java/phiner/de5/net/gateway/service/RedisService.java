@@ -69,10 +69,24 @@ public class RedisService {
     }
 
     try {
-      redisTemplateBytes.opsForList().leftPush(Objects.requireNonNull(redisKey), barData);
-      redisTemplateBytes.opsForList().trim(Objects.requireNonNull(redisKey), 0, klineStorageLimit - 1);
+      // 迁移逻辑：如果 Key 存在且不是 ZSET 类型（旧的 List），则删除
+      org.springframework.data.redis.connection.DataType dataType = redisTemplateBytes.type(redisKey);
+      if (dataType == org.springframework.data.redis.connection.DataType.LIST) {
+          log.info("RedisService: Deteced legacy List type for {}, deleting for ZSET migration", redisKey);
+          redisTemplateBytes.delete(redisKey);
+      }
+
+      double score = bar.getTime();
+      // 1. 明确去重：移除同一时间戳的旧数据（防止成员内容微变导致产生多个条目）
+      redisTemplateBytes.opsForZSet().removeRangeByScore(redisKey, score, score);
+      // 2. 添加新数据
+      redisTemplateBytes.opsForZSet().add(redisKey, barData, score);
+      // 3. 这里的 ZSET 是按 score 升序排列的，我们需要保留最高分（最新）的 N 条，移除较低分（最老）的数据
+      // 移除从 0 到 -(limit+1) 范围的元素
+      redisTemplateBytes.opsForZSet().removeRangeByRank(redisKey, 0, -(klineStorageLimit + 1));
+      
     } catch (Exception e) {
-      log.warn("RedisService: Failed to write bar to key {}: {}", redisKey, e.getMessage());
+      log.warn("RedisService: Failed to write bar to ZSET key {}: {}", redisKey, e.getMessage());
     }
   }
 
@@ -80,9 +94,10 @@ public class RedisService {
     String redisKey =
         String.format("%s:%s:%s", KLINE_KEY_PREFIX, instrument, period);
     try {
-      List<byte[]> barDataList =
-          redisTemplateBytes.opsForList().range(Objects.requireNonNull(redisKey), 0, -1);
-      if (barDataList == null) {
+      // 使用 reverseRange 以获取从新到旧（按时间戳降序）的列表，与之前 List 逻辑一致
+      java.util.Set<byte[]> barDataList =
+          redisTemplateBytes.opsForZSet().reverseRange(redisKey, 0, -1);
+      if (barDataList == null || barDataList.isEmpty()) {
         return Collections.emptyList();
       }
       return barDataList.stream()
@@ -90,7 +105,7 @@ public class RedisService {
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
     } catch (Exception e) {
-      log.error("RedisService: Error while reading K-line from Redis for key '{}': {}", redisKey, e.getMessage());
+      log.error("RedisService: Error while reading K-line from Redis ZSET for key '{}': {}", redisKey, e.getMessage());
       return Collections.emptyList();
     }
   }

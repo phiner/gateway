@@ -31,7 +31,7 @@ forex:
 
 gateway:
   kline:
-    storage-limit: 45
+    storage-limit: ${GATEWAY_KLINE_STORAGE_LIMIT:45}
   heartbeat:
     fixed-rate: ${GATEWAY_HEARTBEAT_INTERVAL:15000}
 
