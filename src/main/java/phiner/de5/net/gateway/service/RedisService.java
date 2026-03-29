@@ -72,7 +72,7 @@ public class RedisService {
       // 迁移逻辑：如果 Key 存在且不是 ZSET 类型（旧的 List），则删除
       org.springframework.data.redis.connection.DataType dataType = redisTemplateBytes.type(redisKey);
       if (dataType == org.springframework.data.redis.connection.DataType.LIST) {
-          log.info("RedisService: Deteced legacy List type for {}, deleting for ZSET migration", redisKey);
+          log.info("RedisService: Detected legacy List type for {}, deleting for ZSET migration", redisKey);
           redisTemplateBytes.delete(redisKey);
       }
 
