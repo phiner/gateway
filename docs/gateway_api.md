@@ -205,7 +205,7 @@ fn main() -> redis::RedisResult<()> {
     });
 
     // 序列化为 MessagePack 字节流
-    let packed = rmp_serde::to_vec(&order_request).unwrap();
+    let packed = rmp_serde::to_vec(&order_request).map_err(|e| redis::RedisError::from((redis::ErrorKind::TypeError, "Msgpack encode error", e.to_string())))?;
 
     // 发布到网格的指令频道
     con.publish("gateway:order:submit", packed)?;
