@@ -32,10 +32,19 @@ public class PeriodUtil {
         MAPPING.put("15 Mins", "15m");
         MAPPING.put("30 Mins", "30m");
         MAPPING.put("1 Hour", "1h");
+        MAPPING.put("Hourly", "1h");
         MAPPING.put("4 Hours", "4h");
+        MAPPING.put("Four Hours", "4h");
         MAPPING.put("Daily", "1d");
         MAPPING.put("Weekly", "1w");
         MAPPING.put("Monthly", "1M");
+        
+        // Aliases
+        MAPPING.put("H1", "1h");
+        MAPPING.put("H4", "4h");
+        MAPPING.put("D1", "1d");
+        MAPPING.put("W1", "1w");
+        MAPPING.put("MN1", "1M");
     }
 
     /**
@@ -56,6 +65,12 @@ public class PeriodUtil {
 
         // 容错处理：转换常见格式
         String cleaned = period.trim();
+
+        // 如果已经是短格式，直接返回
+        if (MAPPING.containsValue(cleaned)) {
+            return cleaned;
+        }
+
         if (cleaned.endsWith(" Mins")) {
             return cleaned.replace(" Mins", "m");
         } else if (cleaned.endsWith(" Min")) {
@@ -66,7 +81,7 @@ public class PeriodUtil {
             return cleaned.replace(" Hour", "h");
         }
         
-        log.debug("Unmapped period string: '{}', returning as is.", period);
+        log.warn("Unmapped period string detected: '{}'. Recommending check of docs/gateway_api.md.", period);
         return period;
     }
 }

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import phiner.de5.net.gateway.config.ForexProperties;
+import phiner.de5.net.gateway.util.PeriodUtil;
 import phiner.de5.net.gateway.KLineManager;
 import phiner.de5.net.gateway.TickManager;
 import phiner.de5.net.gateway.dto.*;
@@ -144,9 +145,11 @@ public class TradingStrategy implements IStrategy {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         this.configuredPeriods.addAll(periodsToProcess);
-        String periods = periodsToProcess.stream().map(Period::toString).collect(Collectors.joining(", "));
-        log.info("将处理以下周期的 K线: {}", periods);
-        redisService.publishInfo("将处理以下周期的 K线: " + periods);
+        String periods = periodsToProcess.stream()
+            .map(p -> PeriodUtil.format(p.toString()))
+            .collect(Collectors.joining(", "));
+        log.info("网关已就绪，将处理以下周期的 K 线: {}", periods);
+        redisService.publishInfo("网关已就绪，将处理以下周期的 K 线: " + periods);
 
         // 异步预加载历史数据，避免阻塞 JForex 启动线程
         java.util.concurrent.CompletableFuture.runAsync(() -> {
@@ -173,7 +176,8 @@ public class TradingStrategy implements IStrategy {
                 String instrumentName = instrument.toString();
                 for (Period period : this.configuredPeriods) {
                   try {
-                    log.info("异步历史预加载器: 正在请求 {} 的 {} 周期历史数据", instrumentName, period);
+                    String shortPeriod = PeriodUtil.format(period.toString());
+                    log.info("异步历史预加载器: 正在请求 {} 的 {} ({}) 周期历史数据", instrumentName, shortPeriod, period);
                     // 计算获取范围：取上一个完整 Bar 的结束时间作为基准
                     long to = history.getPreviousBarStart(period, context.getTime());
                     
@@ -181,7 +185,7 @@ public class TradingStrategy implements IStrategy {
                     List<IBar> bars = history.getBars(instrument, period, OfferSide.ASK, Filter.WEEKENDS, klineStorageLimit, to, 0);
                     
                     if (bars != null && !bars.isEmpty()) {
-                        log.info("异步历史预加载器: 收到 {} 的 {} 周期共 {} 条历史记录", instrumentName, period, bars.size());
+                        log.info("异步历史预加载器: 收到 {} 的 {} 周期共 {} 条历史记录", instrumentName, shortPeriod, bars.size());
                         if (instrumentName != null) {
                             for (IBar bar : bars) {
                                 BarDTO barDTO = new BarDTO(instrumentName, period.toString(), bar);
@@ -190,9 +194,9 @@ public class TradingStrategy implements IStrategy {
                             }
                         }
                     } else if (bars != null) {
-                        log.warn("异步历史预加载器: 未收到 {} 的 {} 周期历史数据（请求数量: {}）", instrumentName, period, klineStorageLimit);
+                        log.warn("异步历史预加载器: 未收到 {} 的 {} 周期历史数据（请求数量: {}）", instrumentName, shortPeriod, klineStorageLimit);
                     } else {
-                        log.warn("异步历史预加载器: 收到 {} 的 {} 周期数据为 null", instrumentName, period);
+                        log.warn("异步历史预加载器: 收到 {} 的 {} 周期数据为 null", instrumentName, shortPeriod);
                     }
                   } catch (Exception e) {
                     log.error("异步历史预加载器: 无法预加载 {} 的 {} 周期历史数据", instrumentName, period, e);
@@ -233,7 +237,7 @@ public class TradingStrategy implements IStrategy {
         && subscribedInstruments.contains(instrument)
         && configuredPeriods.contains(period)) {
       String instrumentName = instrument.toString();
-      String periodName = period.toString();
+      String periodName = PeriodUtil.format(period.toString());
       
       if (instrumentName != null && periodName != null && eventProcessor != null && !eventProcessor.isShutdown()) {
         eventProcessor.submit(() -> {
