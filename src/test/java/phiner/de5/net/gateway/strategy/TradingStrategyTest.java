@@ -47,6 +47,17 @@ public class TradingStrategyTest {
   @BeforeEach
   public void setUp() {
     MockitoAnnotations.openMocks(this);
+    
+    // Mock forexProperties to pass validation in onStart
+    when(forexProperties.getInstruments()).thenReturn(java.util.Arrays.asList("EUR/USD"));
+    when(forexProperties.getPeriods()).thenReturn(java.util.Arrays.asList("FIVE_MINS"));
+
+    // Mock context to return subscribed instruments to avoid ClassCastException in async preloader
+    java.util.Set<Instrument> instruments = new java.util.HashSet<>();
+    instruments.add(Instrument.EURUSD);
+    when(context.getSubscribedInstruments()).thenReturn(instruments);
+    when(context.getHistory()).thenReturn(mock(IHistory.class));
+
     tradingStrategy = new TradingStrategy(tickManager, kLineManager, redisService, forexProperties);
     
     // Mock executeTask to run the task synchronously in tests
@@ -55,8 +66,10 @@ public class TradingStrategyTest {
         return java.util.concurrent.CompletableFuture.completedFuture(callable.call());
     });
     
-    tradingStrategy.onStart(context);
+    // Ensure ALL mockito when(...) calls are finished before starting the engine logic
     when(context.getEngine()).thenReturn(engine);
+    
+    tradingStrategy.onStart(context);
   }
 
   @org.junit.jupiter.api.AfterEach

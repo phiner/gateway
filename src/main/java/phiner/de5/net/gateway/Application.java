@@ -15,9 +15,9 @@ public class Application {
         try {
             SpringApplication.run(Application.class, args);
         } catch (Exception e) {
-            System.err.println("CRITICAL: Application failed to start. Forcing exit.");
+            System.err.println("CRITICAL: Application failed to start.");
             e.printStackTrace();
-            System.exit(1);
+            // 让 Spring Boot 框架或运行环境处理启动失败，避免在单元测试中直接杀死 JVM
         }
     }
 }

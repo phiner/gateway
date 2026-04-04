@@ -48,24 +48,28 @@ public class ConfigValidator {
         
         // 校验品种列表
         if (forexProperties.getInstruments() == null || forexProperties.getInstruments().isEmpty()) {
-            log.error("致命错误: 配置中缺失 FOREX_INSTRUMENTS 或列表为空！程序将退出。");
-            System.exit(1);
+            String error = "致命错误: 配置中缺失 FOREX_INSTRUMENTS 或列表为空！程序将退出。";
+            log.error(error);
+            throw new RuntimeException(error);
         }
 
         // 校验周期列表
         if (forexProperties.getPeriods() == null || forexProperties.getPeriods().isEmpty()) {
-            log.error("致命错误: 配置中缺失 FOREX_PERIODS 或列表为空！程序将退出。");
-            System.exit(1);
+            String error = "致命错误: 配置中缺失 FOREX_PERIODS 或列表为空！程序将退出。";
+            log.error(error);
+            throw new RuntimeException(error);
         }
         
         if (klineStorageLimit <= 0) {
-            log.error("致命错误: GATEWAY_KLINE_STORAGE_LIMIT 必须大于 0，当前值: {}", klineStorageLimit);
-            System.exit(1);
+            String error = String.format("致命错误: GATEWAY_KLINE_STORAGE_LIMIT 必须大于 0，当前值: %d", klineStorageLimit);
+            log.error(error);
+            throw new RuntimeException(error);
         }
 
         if (heartbeatRate < 1000) {
-            log.error("致命错误: GATEWAY_HEARTBEAT_INTERVAL 过小，建议至少 1000ms，当前值: {}", heartbeatRate);
-            System.exit(1);
+            String error = String.format("致命错误: GATEWAY_HEARTBEAT_INTERVAL 过小，建议至少 1000ms，当前值: %d", heartbeatRate);
+            log.error(error);
+            throw new RuntimeException(error);
         }
 
         log.info("核心配置校验通过。已连接 Redis 目标: {}:{}", redisHost, redisPort);
