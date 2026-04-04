@@ -9,8 +9,9 @@ spring:
       enabled: true
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      password: ${REDIS_PASSWORD:}
+      host: ${REDIS_HOST}
+      password: ${REDIS_PASSWORD}
+      port: ${REDIS_PORT}
   lifecycle:
     timeout-per-shutdown-phase: 30s
   threads:
@@ -23,19 +24,19 @@ server:
 forex:
   # Comma-separated list of currency pairs to subscribe to.
   # Example: EURUSD,GBPUSD,USDJPY
-  instruments: ${FOREX_INSTRUMENTS:EUR/USD,GBP/USD,USD/JPY}
+  instruments: ${FOREX_INSTRUMENTS}
 
   # Comma-separated list of candle periods for the subscribed instruments.
   # Valid values are from the Dukascopy Period enum, e.g., ONE_MIN, FIVE_MINS, FIFTEEN_MINS, ONE_HOUR, DAILY
-  periods: ${FOREX_PERIODS:FIVE_MINS,FIFTEEN_MINS,DAILY}
+  periods: ${FOREX_PERIODS}
 
 gateway:
   kline:
-    storage-limit: ${GATEWAY_KLINE_STORAGE_LIMIT:45}
+    storage-limit: ${GATEWAY_KLINE_STORAGE_LIMIT}
   heartbeat:
-    fixed-rate: ${GATEWAY_HEARTBEAT_INTERVAL:15000}
+    fixed-rate: ${GATEWAY_HEARTBEAT_INTERVAL}
 
 # JForex Connection Settings
-jforex.url: ${JFOREX_URL:http://platform.dukascopy.com/demo_3/jforex_3.jnlp}
+jforex.url: ${JFOREX_URL}
 jforex.username: ${JFOREX_USERNAME}
 jforex.password: ${JFOREX_PASSWORD}

@@ -191,11 +191,10 @@ public class RedisService {
     }
 
     // 从配置文件中读取 Redis 主机地址，默认值为 127.0.0.1
-    @Value("${spring.data.redis.host:127.0.0.1}")
+    @Value("${spring.data.redis.host}")
     private String redisHost;
 
-    // 从配置文件中读取 Redis 端口号，默认值为 6379
-    @Value("${spring.data.redis.port:6379}")
+    @Value("${spring.data.redis.port}")
     private int redisPort;
 
     public void testConnection() {

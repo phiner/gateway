@@ -56,7 +56,7 @@ public class TradingStrategy implements IStrategy {
   @Value("${gateway.kline.storage-limit}")
   private int klineStorageLimit;
 
-  @Value("${gateway.heartbeat.fixed-rate:15000}")
+  @Value("${gateway.heartbeat.fixed-rate}")
   private long heartbeatRate;
 
   public TradingStrategy(
@@ -126,8 +126,12 @@ public class TradingStrategy implements IStrategy {
               saveInstrumentDetailsToRedis(instrument);
           }
         } else {
-          log.warn("没有有效的产品可供订阅！");
+          log.error("致命错误: 没有有效的交易产品 (FOREX_INSTRUMENTS) 可供订阅！程序将退出。");
+          System.exit(1);
         }
+      } else {
+          log.error("致命错误: 配置中缺失 FOREX_INSTRUMENTS！程序将退出。");
+          System.exit(1);
       }
 
       // 解析并存储配置的周期
@@ -145,6 +149,10 @@ public class TradingStrategy implements IStrategy {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
         this.configuredPeriods.addAll(periodsToProcess);
+        if (this.configuredPeriods.isEmpty()) {
+            log.error("致命错误: 没有有效的 K 线周期 (FOREX_PERIODS) 配置！程序将退出。");
+            System.exit(1);
+        }
         String periods = periodsToProcess.stream()
             .map(p -> PeriodUtil.format(p.toString()))
             .collect(Collectors.joining(", "));
