@@ -21,19 +21,17 @@ In a modern quantitative trading stack, Phiner Gateway sits as the **Connectivit
 ## 💡 Why Phiner Gateway? (Value Proposition)
 
 ### 1. Break the "Java-Only" Barrier
-JForex is natively a Java SDK. Phiner Gateway exposes all functionality via **Redis Pub/Sub and Hashes**, meaning you can now write your strategies in **Python (NumPy/Pandas/PyTorch)**, **Go (High-performance execution)**, or **Node.js (Real-time dashboards)** without touching a single line of Java.
+JForex is natively a Java SDK. Phiner Gateway exposes all market data via **Redis Stream** and order control via **Redis Pub/Sub**, meaning you can now write your strategies in **Python (NumPy/Pandas/PyTorch)**, **Go (High-performance execution)**, or **Node.js (Real-time dashboards)** without touching a single line of Java.
 
 ### 2. High-Density Market Data Streaming
-Standard JSON streaming is slow and heavy. We use **MessagePack (binary)** to stream ticks and bars. This provides:
-- **Lower Latency**: Faster serialization/deserialization.
-- **Smaller Footprint**: Up to 50% reduction in bandwidth compared to JSON.
-- **Backpressure Handling**: Redis acting as a high-speed buffer between the broker and your strategy.
+- **Redis Stream Backplane**: Real-time ticks are pushed into Redis Streams. This allows for multi-consumer group distribution and sub-millisecond historical replay.
+- **Efficient Normalization**: All market data is normalized into a consistent format (`t`, `a`, `b`, `av`, `bv`), reducing parsing overhead for strategy layers.
+- **Reliable Buffering**: Redis acts as a high-speed buffer, preventing backpressure from slow strategy logic from affecting the broker connection.
 
-### 3. Distributed & Resilient Architecture
-Unlike running a strategy directly inside JForex:
-- **Isolation**: A crash in your strategy doesn't kill the connection to the broker.
-- **Scalability**: Multiple strategy instances can subscribe to the same market data stream from a single Gateway instance.
-- **Hot Updates**: Restart or update your strategy logic while the Gateway maintains the market data connection and session state.
+### 3. Resilience & Lifecycle Management
+- **Isolation**: A strategy crash does not impact the connection to the broker.
+- **Startup Protection**: The Gateway implements strict readiness checks, only enabling the data flow after a stable connection is verified, preventing "dirty" data during initialization.
+- **Scalability**: Subscribing to market data is as simple as reading from a Redis key, supporting massive fan-out to multiple internal consumers.
 
 ---
 
@@ -42,10 +40,10 @@ Unlike running a strategy directly inside JForex:
 | Component | Technology | Role |
 | :--- | :--- | :--- |
 | **Runtime** | Java 21 (OpenJDK) | Utilizing Virtual Threads (Project Loom) for high-concurrency I/O. |
-| **Framework** | Spring Boot 4.0.2 | Core dependency injection, scheduling, and observability. |
-| **Connectivity** | JForex SDK 3.6.51 | Native binary connection to Dukascopy servers. |
-| **Messaging** | Redis (RESP2) | Backplane for market data distribution and command routing. |
-| **Serialization** | MessagePack | Production-grade binary serialization for all DTOs. |
+| **Framework** | Spring Boot 4.x | Core dependency injection, scheduling, and lifecycle management. |
+| **Connectivity** | JForex SDK 3.6.x | Native binary connection to Dukascopy servers. |
+| **Messaging** | Redis (RESP2/Stream) | Backplane for market data distribution and command routing. |
+| **Serialization** | Native / MsgPack | Hybrid serialization optimized for speed and payload size. |
 | **Containerization** | Google Jib | Minimalist distroless container builds (Multi-arch). |
 
 ---
@@ -53,54 +51,62 @@ Unlike running a strategy directly inside JForex:
 ## 📡 Data Schema & Protocol
 
 ### Market Data (Output Streams)
-| Channel | Description | Data Structure |
+| Channel | Mechanism | Data Structure |
 | :--- | :--- | :--- |
-| `gateway:tick:{Symbol}` | L1 Market Data | `Time, Ask, Bid` (MessagePack) |
-| `gateway:kline:{Symbol}:{Period}` | OHLC Bar Data | `Time, Open, High, Low, Close, Volume` (MessagePack) |
-| `gateway:account:status` | Real-time balance | `Equity, Margin, Unrealized P/L` (MessagePack) |
+| `gateway:ticks:stream:{Symbol}` | **Stream** | `t(Time), a(Ask), b(Bid), av(AskVol), bv(BidVol)` |
+| `gateway:kline:{Symbol}:{Period}` | Pub/Sub | `Open, High, Low, Close, Volume` (MsgPack) |
+| `gateway:account:status` | Pub/Sub | `Equity, Margin, Unrealized P/L` (MsgPack) |
 
 ### Command Interface (Input Control)
-Trigger trades by publishing MessagePack data to these channels:
+Trigger trades by publishing data to these channels:
 - `gateway:order:submit`: Submit Market/Limit/Stop orders.
 - `gateway:order:modify`: Updates SL/TP on the fly.
 - `gateway:order:cancel`: Terminate pending orders.
-- `gateway:order:close`: Full or partial position liquidation。
+- `gateway:order:close`: Full or partial position liquidation.
 
-详见 [Gateway API 文档](./docs/gateway_api.md)
+See [Gateway API Documentation](./docs/gateway_api.md) for details.
 
 ---
 
 ## 🚀 Quick Start
 
-1. **Configure Environment**: Set your JForex credentials in `.env`.
+1. **Configure Environment**: Set your credentials and **Redis connection** in `.env`:
+   ```bash
+   REDIS_HOST=your-redis-host
+   REDIS_PORT=6379
+   REDIS_PASSWORD=optional-password
+   ```
 2. **Launch Gateway**:
    ```bash
    ./mvnw spring-boot:run
    ```
-3. **Connect your Strategy**: Use any Redis client to subscribe to market data and send orders.
+3. **Connect your Strategy**: Read from the Stream for ticks and subscribe to channels for events.
 
-**Example: Subscribe to EUR/USD ticks and errors**
+**Example: Read EUR/USD ticks using Node.js (Streams)**
 ```javascript
-// Node.js example
 const Redis = require('ioredis');
-const msgpack = require('msgpack');
+const redis = new Redis(); // Connects to localhost:6379 by default
 
-const redis = new Redis();
-
-// Subscribe to ticks
-redis.subscribe('gateway:tick:EUR/USD');
-// Subscribe to errors
-redis.subscribe('gateway:error:structured');
-
-redis.on('message', (channel, message) => {
-  const data = msgpack.decode(Buffer.from(message));
+async function trackTicks() {
+  let lastId = '$'; // Start reading from the newest entry
+  console.log("Listening to EUR/USD Stream...");
   
-  if (channel.startsWith('gateway:tick:')) {
-    console.log(`Tick: ${data.ask} / ${data.bid}`);
-  } else if (channel === 'gateway:error:structured') {
-    console.log(`Error: ${data.code} - ${data.message}`);
+  while (true) {
+    // Blocking read from Redis Stream
+    const result = await redis.xread('BLOCK', 5000, 'STREAMS', 'gateway:ticks:stream:EUR/USD', lastId);
+    
+    if (result) {
+      const [stream, messages] = result[0];
+      for (const [id, data] of messages) {
+        lastId = id;
+        // Data is returned as a flat array [field, value, field, value...]
+        console.log(`New Tick [${id}]:`, data);
+      }
+    }
   }
-});
+}
+
+trackTicks().catch(console.error);
 ```
 
 ---

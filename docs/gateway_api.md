@@ -32,6 +32,9 @@ Gateway 会将行情流和全量状态写入以下 Redis 键中。
 - `bv`: 买入量 (bid volume)
 - `av`: 卖出量 (ask volume)
 
+> [!IMPORTANT]
+> **流量激活时机**: 为了确保数据的连续性与完整性，行情流仅在网关应用完全启动、完成所有内部自检并触发 Spring `ApplicationReadyEvent` 信号后，才会正式开启向 Redis 的投递。在启动初期的连接建立阶段，Tick 数据将被静默处理，不会进入 Stream。
+
 ---
 
 ## 2. 收听频道 (Gateway -> Client Pub/Sub)

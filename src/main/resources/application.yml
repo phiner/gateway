@@ -2,6 +2,8 @@
 spring:
   application:
     name: demo
+  config:
+    import: "optional:file:.env[.properties]" # 显式支持项目根目录的 .env 文件
   devtools:
     restart:
       enabled: true
@@ -9,9 +11,9 @@ spring:
       enabled: true
   data:
     redis:
-      host: ${REDIS_HOST}
-      password: ${REDIS_PASSWORD}
-      port: ${REDIS_PORT}
+      host: ${REDIS_HOST:localhost}
+      password: ${REDIS_PASSWORD:}
+      port: ${REDIS_PORT:6379}
   lifecycle:
     timeout-per-shutdown-phase: 30s
   threads:
