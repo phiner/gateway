@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * 高性能外汇 Tick 生产者，使用 Redis Stream 存储实时数据。
- * [重构优化] 切换至原生 byte[] 模式以支撑最高吞吐，并预分配静态字段键以消除 GC 压力。
+ * [强制重写/Git 冲突修复] 保持原生 byte[] 模式与极速字节指令集。
  */
 @Slf4j
 @Service
@@ -61,7 +61,6 @@ public class ForexTickProducer {
             
             if (connectionFactory.getConnection() instanceof LettuceConnection lettuceConn) {
                 Object nativeConn = lettuceConn.getNativeConnection();
-                // 必须适配 byte[] 类型连接以匹配高性能写入指令
                 if (nativeConn instanceof StatefulRedisConnection<?, ?> statefulConn) {
                     @SuppressWarnings("unchecked")
                     StatefulRedisConnection<byte[], byte[]> byteConn = (StatefulRedisConnection<byte[], byte[]>) nativeConn;
@@ -70,7 +69,7 @@ public class ForexTickProducer {
             }
             
             this.xAddArgs = new XAddArgs().maxlen(maxStreamLength).approximateTrimming(true);
-            log.info("ForexTickProducer 已通过 Spring ConnectionFactory 成功初始化并建立异步字节指令集");
+            log.info("ForexTickProducer 已成功初始化并启用异步字节指令集");
         } catch (Exception e) {
             log.error("ForexTickProducer 初始化失败: {}", e.getMessage(), e);
         }
@@ -84,7 +83,6 @@ public class ForexTickProducer {
 
         byte[] streamKey = (STREAM_KEY_PREFIX + symbol).getBytes(StandardCharsets.UTF_8);
         
-        // 构造数据 Map
         Map<byte[], byte[]> data = new HashMap<>(5);
         data.put(FIELD_T, String.valueOf(timestamp).getBytes(StandardCharsets.UTF_8));
         data.put(FIELD_B, PRICE_FORMAT.format(bid).getBytes(StandardCharsets.UTF_8));
@@ -107,9 +105,6 @@ public class ForexTickProducer {
         }
     }
 
-    /**
-     * 支持在单元测试中注入 Mock 命令集
-     */
     void setAsyncCommandsForTest(RedisAsyncCommands<byte[], byte[]> asyncCommands) {
         this.asyncCommands = asyncCommands;
     }
