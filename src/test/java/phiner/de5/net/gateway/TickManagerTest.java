@@ -27,6 +27,8 @@ public class TickManagerTest {
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
+        // 手动触发就绪事件，以启用对 ForexTickProducer 的调用转发
+        tickManager.onApplicationReady();
     }
 
     @Test
