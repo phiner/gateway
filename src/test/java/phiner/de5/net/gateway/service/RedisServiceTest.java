@@ -144,17 +144,6 @@ public class RedisServiceTest {
         mockedUtil.verifyNoInteractions();
     }
 
-    @Test
-    public void testPublishTick() {
-        TickDTO tick = new TickDTO("EUR/USD", 123L, 1.1, 1.2);
-        byte[] tickData = "mocked-tick-data".getBytes();
-        String expectedChannel = "gateway:tick:EUR/USD";
-        mockedUtil.when(() -> MsgpackUtil.encode(tick)).thenReturn(tickData);
-
-        redisService.publishTick(tick);
-
-        verify(redisTemplateBytes).convertAndSend(expectedChannel, tickData);
-    }
 
     @Test
     public void testPublishBar() {

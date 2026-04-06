@@ -129,14 +129,6 @@ public class RedisService {
     }
   }
 
-  public void publishTick(@NonNull TickDTO tick) {
-    if (tick.getInstrument() == null) {
-      log.error("RedisService: Cannot publish tick with null instrument.");
-      return;
-    }
-    String channel = "gateway:tick:" + tick.getInstrument();
-    publishToChannel(channel, tick);
-  }
 
   public void publishBar(@NonNull BarDTO bar) {
     if (bar.getInstrument() == null || bar.getPeriod() == null) {
