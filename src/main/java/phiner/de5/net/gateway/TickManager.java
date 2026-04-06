@@ -5,7 +5,6 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import phiner.de5.net.gateway.dto.TickDTO;
 import phiner.de5.net.gateway.service.ForexTickProducer;
-import phiner.de5.net.gateway.service.RedisService;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,11 +13,9 @@ import java.util.Map;
 @Component
 public class TickManager {
     private final Map<String, TickDTO> lastTicks = Collections.synchronizedMap(new HashMap<>());
-    private final RedisService redisService;
     private final ForexTickProducer forexTickProducer;
 
-    public TickManager(RedisService redisService, ForexTickProducer forexTickProducer) {
-        this.redisService = redisService;
+    public TickManager(ForexTickProducer forexTickProducer) {
         this.forexTickProducer = forexTickProducer;
     }
 

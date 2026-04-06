@@ -9,16 +9,11 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import phiner.de5.net.gateway.dto.TickDTO;
 import phiner.de5.net.gateway.service.ForexTickProducer;
-import phiner.de5.net.gateway.service.RedisService;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TickManagerTest {
-
-    @Mock
-    private RedisService redisService;
 
     @Mock
     private ForexTickProducer forexTickProducer;
