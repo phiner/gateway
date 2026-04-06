@@ -90,7 +90,7 @@ public class ForexTickProducer {
         data.put("av", String.valueOf(askVol));
 
         // 使用 MAXLEN ~ 提升性能，避免严格修剪带来的性能损耗
-        XAddArgs args = XAddArgs.args().maxlen(maxStreamLength).approximateTrimming(true);
+        XAddArgs args = new XAddArgs().maxlen(maxStreamLength).approximateTrimming(true);
         
         asyncCommands.xadd(streamKey, args, data)
                 .exceptionally(ex -> {
