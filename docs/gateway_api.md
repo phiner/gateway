@@ -132,7 +132,8 @@ Gateway 会将行情流和全量状态写入以下 Redis 键中。
   "price": 0, // 限价/止损单需指定
   "slippage": 5.0, 
   "stopLossPrice": 0, 
-  "takeProfitPrice": 0 
+  "takeProfitPrice": 0,
+  "gtt": 1700000010000 // 订单过期时间戳 (Unix MS)，仅限价/止损单有效
 }
 ```
 
